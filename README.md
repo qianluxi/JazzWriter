@@ -46,11 +46,29 @@ python main.py play "..." --creativity 0.8 --surprise-level 0.6 --style-distance
 # 同一场景生成多个版本（同一和声，不同 Solo 色彩）
 python main.py takes "同上" --mode bebop --styles 冷静观察 象征增强 心理深入
 
-# 回听评价一个已保存的章节
-python main.py evaluate output/chapters/ch001_take01_冷静观察.md
+# 模式B：同一主题多次独立即兴（各 Take 走不同叙事路径）
+python main.py takes "同上" --mode bebop --seed 7 --explore --styles 象征增强 心理深入
+
+# 生成后给出下一章场景骨架（交互式选择，不自动续写）
+python main.py play "..." --suggest
+python main.py plan --count 3
+
+# 打印实际调用模型的完整 prompt（与真实调用一致）
+python main.py play "..." --show-prompt
+
+# 回听评价一个已保存的章节（可切换评价方式）
+python main.py evaluate output/chapters/ch001_take01_冷静观察.md --eval-mode lexical
 
 # 查看动机的意义演变轨迹
 python main.py motifs
+
+# 查看演奏历史与趋势统计
+python main.py history
+python main.py history --chapter 5 --metric novelty --limit 20
+
+# 查看并显式应用下一轮参数建议（默认不自动改默认乐谱）
+python main.py advice
+python main.py advice --apply
 
 # 查看即兴参数与三种模式预设
 python main.py jazz
@@ -60,6 +78,12 @@ python main.py styles
 
 # 无参数运行：离线演示
 python main.py
+```
+
+运行回归测试（确定性 / 记录完整性 / 连续性 / 反馈边界）：
+
+```powershell
+python -m unittest discover -s tests
 ```
 
 通过管道传入场景：
@@ -107,8 +131,33 @@ python main.py play "..." --provider openai
 | surprise_level | 剧情转折 | 0.15 | 0.50 | 0.70 |
 | style_distance | 语言变化 | 0.15 | 0.45 | 0.80 |
 
-**回听 → 重调**（`feedback/`）：`Conductor` 读评价结果给出下一轮参数建议——
-创新太低则提高 `randomness`，偏离主题则降低自由度。作者始终选择保留哪段演奏。
+### 叙事操作 · ImprovisationOperator（V0.5 核心）
+
+即兴不是随机加情节，而是选择一种**叙事操作**：注意力转移 / 感官替换 / 认知偏差 /
+信息错位 / 意象变奏 / 情绪反差 / 行动偏航 / 因果重审。每轮按参数随机挑选 1–3 个组合，
+并附带硬约束（人物动机一致、不得篡改已确定事实、不得提前揭露）。见
+`improvisation/operator_engine.py`。
+
+### 故事状态与连续性 · StoryState（V0.6 基础）
+
+`data/story_state.yaml` 区分五种“真”：**已确定事实 / 怀疑 / 秘密 / 未决线索 /
+候选创意**。`SurpriseEngine` 会读取故事状态：过滤不适用的意外、为意外绑定具体的
+事实/线索/意象、并保证**已确定事实不可被随机覆盖**。`Evaluator` 会检测“提前揭露”
+（连续性问题）并单独报告，而不计入总分。
+
+### 回听 → 重调（`feedback/`）
+
+`Conductor` 读评价给出下一轮参数建议：创新太低则提高 `randomness`，偏离主题则降低
+自由度。建议写入 `output/advice_history.jsonl`，默认**只待审核**；`advice --apply`
+才把结果写入 `data/jazz_state.yaml`（运行时状态），不会静默改动作者在 `story.yaml`
+里的默认乐谱。
+
+### 可观测性与可复现（V0.4.1）
+
+每次 `play` 保存一份完整运行记录到 `output/runs/<run_id>.json`，包含
+`cue / cue_directives / prompt / context / take / evaluation / conductor_advice`。
+固定随机种子时即兴决策可复现（模型采样另有随机性）；`--show-prompt` 打印的就是
+实际调用模型的同一份 prompt。`history` 命令基于这些记录做排序、筛选与趋势统计。
 
 ## 数据文件（乐谱）
 
@@ -125,22 +174,31 @@ core/
   theme.py       主题旋律         core/improviser.py  即兴简报(核心)
   character.py   人物 Solo        core/motif.py       动机追踪
   harmony.py     叙事和声
+  story_state.py  故事状态(事实/认知/线索) core/improviser.py 即兴简报
 improvisation/                     # 即兴层：受控的偏移
   improvisation_score.py  指挥台 + Cue(核心)
+  operator_engine.py      叙事操作库(8种, V0.5 核心)
   randomizer.py           JazzSeed 随机种子
   motif_engine.py         动机变奏
-  surprise_engine.py      受控意外(转调)
+  surprise_engine.py      受控意外(尊重故事状态)
   rhythm_engine.py        叙事节奏
   solo_engine.py          人物 Solo
 engine/
-  composer.py    取一次 Take      engine/evaluator.py 回听评价
-  variation.py   多版本变奏
+  composer.py    取一次 Take      evaluator.py   回听评价(含文学信号)
+  variation.py   多版本变奏       scene_planner.py 下一章场景骨架
+  textutil.py    轻量文本分析     semantic_similarity.py 可选语义评价
 feedback/
   theme_check.py / character_check.py / novelty_check.py
   conductor.py   重调乐谱(自适应)
 llm/
   base.py        接口            mock.py 离线    openai_provider.py 真实模型
-session.py       乐队装配         store.py 读写    cli.py 命令行
+session.py       乐队装配         store.py 读写(含 runs/state)  cli.py 命令行
+tests/           确定性/记录/连续性/反馈 回归测试
+output/
+  chapters/      章节正文(.md)     runs/  完整运行记录(.json)
+  advice_history.jsonl  参数建议与变更记录
+data/
+  story.yaml characters.yaml motifs.yaml story_state.yaml [jazz_state.yaml]
 ```
 
 ## 设计原则
@@ -163,6 +221,10 @@ session.py       乐队装配         store.py 读写    cli.py 命令行
 - V0.2 ✅ 可插拔 LLM（mock / OpenAI 兼容）
 - V0.3 ✅ 回听评价 + 多 Take
 - V0.4 ✅ 即兴层：乐谱参数 / 受控意外 / 动机变奏 / 回听重调
-- V0.5 ⏳ Jam Session：导演 + 多人物 Solo + 旁白 + 编辑者（多智能体）
-- V0.6 ⏳ 向量记忆：章节 embedding、偏离检测（`engine/textutil.py` 已留接口）
-- V1.0 ⏳ 世界观编辑器 / 人物关系图 / 风格控制台
+- V0.4.1 ✅ 可观测性：完整运行记录 `output/runs` / `history` 趋势 / `--show-prompt` 一致 / 可选语义评价 / 回归测试
+- V0.5 ✅ 叙事即兴引擎：`ImprovisationOperator` 操作库 / 故事状态感知的意外 / 多路径探索(Mode B)
+- V0.6 ◑ 长篇记忆与闭环：`StoryState` 故事圣经 / `scene_planner` 场景骨架 / `Conductor` 可撤销参数闭环 / 文学回听信号（向量记忆待做）
+- V0.7 ⏳ Jam Session：Director + Soloist + Observer + Editor 顺序合奏
+- V1.0 ⏳ 向量记忆：章节 embedding、叙事偏离检测、动机演变/人物弧可视化
+
+核心循环：**设定 → 即兴决策 → 生成多个可能性 → 回听与比较 → 作者选择 → 更新故事状态 → 下一轮即兴。**

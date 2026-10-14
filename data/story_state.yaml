@@ -1,0 +1,38 @@
+chapter: 2
+
+established_facts:
+  - id: fact_001
+    statement: 事故报告存在两个不同版本
+    first_chapter: 2
+    status: confirmed
+  - id: fact_002
+    statement: 父亲是当晚值班的检修负责人
+    first_chapter: 2
+    status: confirmed
+  - id: secret_001
+    statement: 是父亲亲手签下了掩盖事故的命令
+    first_chapter: 0
+    status: secret
+
+character_knowledge:
+  林:
+    known: [fact_001, fact_002]
+    suspected: [fact_001]
+    unknown: [secret_001]
+    secrets: []
+  苏:
+    known: [fact_001]
+    suspected: []
+    unknown: [secret_001]
+    secrets: []
+
+open_threads:
+  - id: thread_001
+    question: 谁修改了事故记录
+    introduced_chapter: 2
+    status: open
+    reveal_before_chapter: null
+
+recent_events:
+  - chapter: 2
+    event: 林在检修井底发现阀门自行转动

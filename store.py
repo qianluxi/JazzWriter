@@ -11,6 +11,7 @@ import yaml
 from core.character import Character
 from core.harmony import Harmony
 from core.motif import MotifLibrary
+from core.story_state import StoryState
 from core.theme import Theme
 from engine.composer import Take
 from engine.evaluator import Evaluation
@@ -19,6 +20,10 @@ ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
 OUTPUT_DIR = ROOT / "output"
 CHAPTERS_DIR = OUTPUT_DIR / "chapters"
+RUNS_DIR = OUTPUT_DIR / "runs"
+ADVICE_PATH = OUTPUT_DIR / "advice_history.jsonl"
+STATE_PATH = DATA_DIR / "story_state.yaml"
+JAZZ_STATE_PATH = DATA_DIR / "jazz_state.yaml"
 
 
 def _load_yaml(path: Path) -> Dict[str, Any]:
@@ -107,3 +112,86 @@ def save_take(
 
 def read_take(path: Path) -> str:
     return Path(path).read_text(encoding="utf-8")
+
+
+# -- run records (full, reproducible performance logs) -------------------------
+def save_run(record: Dict[str, Any], *, outdir: Optional[Path] = None) -> Path:
+    base = outdir or RUNS_DIR
+    base.mkdir(parents=True, exist_ok=True)
+    run_id = record.get("run_id") or "run"
+    path = base / f"{run_id}.json"
+    path.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
+    return path
+
+
+def load_runs(*, outdir: Optional[Path] = None) -> List[Dict[str, Any]]:
+    base = outdir or RUNS_DIR
+    if not base.exists():
+        return []
+    records: List[Dict[str, Any]] = []
+    for path in sorted(base.glob("*.json")):
+        try:
+            records.append(json.loads(path.read_text(encoding="utf-8")))
+        except (json.JSONDecodeError, OSError):
+            continue
+    return records
+
+
+def load_run(run_id: str, *, outdir: Optional[Path] = None) -> Optional[Dict[str, Any]]:
+    base = outdir or RUNS_DIR
+    path = base / f"{run_id}.json"
+    if not path.exists():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+# -- story state (lightweight story bible) -------------------------------------
+def load_story_state(path: Optional[Path] = None) -> StoryState:
+    data = _load_yaml(path or STATE_PATH)
+    return StoryState.from_dict(data) if data else StoryState()
+
+
+def save_story_state(state: StoryState, path: Optional[Path] = None) -> Path:
+    target = path or STATE_PATH
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with target.open("w", encoding="utf-8") as fh:
+        yaml.safe_dump(state.to_dict(), fh, allow_unicode=True, sort_keys=False)
+    return target
+
+
+# -- jazz runtime state & advice history ---------------------------------------
+def load_jazz_state(path: Optional[Path] = None) -> Dict[str, Any]:
+    data = _load_yaml(path or JAZZ_STATE_PATH)
+    return data.get("jazz", data) if data else {}
+
+
+def save_jazz_state(params_dict: Dict[str, Any], path: Optional[Path] = None) -> Path:
+    target = path or JAZZ_STATE_PATH
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with target.open("w", encoding="utf-8") as fh:
+        yaml.safe_dump({"jazz": params_dict}, fh, allow_unicode=True, sort_keys=False)
+    return target
+
+
+def append_advice(record: Dict[str, Any], path: Optional[Path] = None) -> Path:
+    target = path or ADVICE_PATH
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with target.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+    return target
+
+
+def load_advice(path: Optional[Path] = None) -> List[Dict[str, Any]]:
+    target = path or ADVICE_PATH
+    if not target.exists():
+        return []
+    out: List[Dict[str, Any]] = []
+    for line in target.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            out.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    return out

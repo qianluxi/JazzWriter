@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional
 from core.character import Character
 from core.harmony import Harmony
 from core.motif import MotifLibrary
+from core.story_state import StoryState
 from core.theme import Theme
 
 if TYPE_CHECKING:  # avoid a hard import cycle at runtime
@@ -82,11 +83,13 @@ class Improviser:
         character: Character,
         harmony: Harmony,
         motifs: Optional[MotifLibrary] = None,
+        story_state: Optional[StoryState] = None,
     ) -> None:
         self.theme = theme
         self.character = character
         self.harmony = harmony
         self.motifs = motifs or MotifLibrary()
+        self.story_state = story_state
 
     # -- prompt construction ------------------------------------------------
     def create_prompt(
@@ -139,6 +142,9 @@ class Improviser:
 
         if cue is not None:
             sections += ["", "【即兴决策 · Jazz Cue（本次演奏的乐谱）】", cue.directives()]
+
+        if self.story_state is not None and (self.story_state.established_facts or self.story_state.open_threads):
+            sections += ["", "【故事状态 Story State（连续性约束）】", self.story_state.summary()]
 
         if ctx.previous_summary:
             sections += ["", "【上文回顾（保持连续性，不要复述）】", ctx.previous_summary]
@@ -194,4 +200,6 @@ class Improviser:
         }
         if cue is not None:
             data["cue"] = cue.to_dict()
+        if self.story_state is not None:
+            data["story_state"] = self.story_state.to_dict()
         return data

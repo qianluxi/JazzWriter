@@ -2,9 +2,8 @@
 
 This is the heart of Controlled Divergence. For each take it *deals* a Cue:
 how much to stay in the theme vs. how far to travel, which color, which motif
-mutations, which surprises, which rhythmic feel, which solo voice.
-
-Directly mirrors the expert's proposed jazz parameters.
+mutations, which narrative operators, which surprises, which rhythmic feel and
+which solo voice. Surprises respect the StoryState.
 """
 
 from __future__ import annotations
@@ -15,8 +14,10 @@ from typing import Any, Dict, List, Optional
 
 from core.character import Character
 from core.motif import MotifLibrary
+from core.story_state import StoryState
 from core.theme import Theme
 from improvisation.motif_engine import MotifEngine, MotifVariation
+from improvisation.operator_engine import OperatorEngine, OperatorPlan
 from improvisation.randomizer import JazzSeed, Randomizer
 from improvisation.rhythm_engine import Rhythm, RhythmEngine
 from improvisation.solo_engine import CharacterSolo, SoloStyle
@@ -95,6 +96,7 @@ class Cue:
     jazz_seed: JazzSeed
     motifs: List[MotifVariation] = field(default_factory=list)
     surprises: List[Surprise] = field(default_factory=list)
+    operators: Optional[OperatorPlan] = None
     rhythm: Optional[Rhythm] = None
     solo: Optional[SoloStyle] = None
 
@@ -109,6 +111,12 @@ class Cue:
         if self.motifs:
             lines.append("动机变奏:")
             lines.extend("  - " + m.directive() for m in self.motifs)
+
+        if self.operators and self.operators.operators:
+            lines.append("叙事操作:")
+            for op in self.operators.operators:
+                lines.append(f"  - [{op.name}] {op.directive}")
+
         if self.surprises:
             lines.append("受控意外（须自然融入，不可生硬）:")
             lines.extend("  - " + s.directive() for s in self.surprises)
@@ -125,6 +133,10 @@ class Cue:
             lines.append("语言距离: 大 — 允许明显的陌生化、非常规句法与叙述跳跃。")
         elif dist <= 0.25:
             lines.append("语言距离: 小 — 贴近常规叙述，克制修辞，避免炫技。")
+
+        if self.operators and self.operators.constraint_lines():
+            lines.append("硬约束:")
+            lines.extend("  - " + c for c in self.operators.constraint_lines())
         return "\n".join(lines)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -135,6 +147,7 @@ class Cue:
             "jazz_seed": self.jazz_seed.to_dict() if self.jazz_seed else {},
             "motifs": [m.to_dict() for m in self.motifs],
             "surprises": [s.to_dict() for s in self.surprises],
+            "operators": self.operators.to_dict() if self.operators else {},
             "rhythm": self.rhythm.to_dict() if self.rhythm else {},
             "solo": self.solo.to_dict() if self.solo else {},
         }
@@ -147,16 +160,18 @@ class ImprovisationScore:
         theme: Theme,
         character: Character,
         library: MotifLibrary,
+        story_state: Optional[StoryState] = None,
         rng: Optional[random.Random] = None,
     ) -> None:
         self.params = params
         self.theme = theme
         self.character = character
         self.library = library
+        self.story_state = story_state
         self.seed_int = params.seed if params.seed is not None else random.SystemRandom().randint(1, 2**31 - 1)
         self.rng = rng or random.Random(self.seed_int)
 
-    def roll(self, chapter: int = 1) -> Cue:
+    def roll(self, chapter: int = 1, used_surprises: Optional[List[str]] = None) -> Cue:
         p = self.params
         randomizer = Randomizer(self.rng)
         jazz_seed = randomizer.seed(
@@ -167,9 +182,23 @@ class ImprovisationScore:
             angle_chance=p.randomness * 0.6,
         )
         motif_engine = MotifEngine(self.library, reuse=p.motif_reuse, rng=self.rng)
+        motif_names = self.library.names()
+        operators = OperatorEngine(self.rng).select(
+            creativity=p.creativity,
+            randomness=p.randomness,
+            motif_reuse=p.motif_reuse,
+            state=self.story_state,
+            has_motifs=bool(motif_names),
+        )
+        surprises = SurpriseEngine(self.rng).mutate(
+            p.surprise_level,
+            self.story_state,
+            has_motifs=bool(motif_names),
+            motifs=motif_names,
+            used_categories=used_surprises or [],
+        )
         rhythm = RhythmEngine(self.rng).choose(mode=p.mode, creativity=p.creativity)
         solo = CharacterSolo().generate_style(self.character)
-        surprises = SurpriseEngine(self.rng).mutate(p.surprise_level)
 
         return Cue(
             mode=p.mode,
@@ -178,6 +207,7 @@ class ImprovisationScore:
             jazz_seed=jazz_seed,
             motifs=motif_engine.plan(chapter=chapter),
             surprises=surprises,
+            operators=operators,
             rhythm=rhythm,
             solo=solo,
         )

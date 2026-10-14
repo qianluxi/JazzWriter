@@ -5,4 +5,8 @@ venv/
 .env
 output/chapters/*
 !output/chapters/.gitkeep
+output/runs/*
+!output/runs/.gitkeep
+output/advice_history.jsonl
+data/jazz_state.yaml
 .pytest_cache/

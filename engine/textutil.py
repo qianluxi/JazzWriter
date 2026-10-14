@@ -62,6 +62,20 @@ def coverage(text: str, needles: Iterable[str]) -> float:
     return contains_any(text, items) / len(items)
 
 
+def char_ngrams(text: str, n: int = 4) -> List[str]:
+    cjk = _CJK.findall(text)
+    if len(cjk) < n:
+        return cjk
+    return ["".join(cjk[i:i + n]) for i in range(len(cjk) - n + 1)]
+
+
+def repetition_ratio(text: str, n: int = 4) -> float:
+    grams = char_ngrams(text, n)
+    if not grams:
+        return 0.0
+    return 1.0 - (len(set(grams)) / len(grams))
+
+
 def lexical_diversity(text: str) -> float:
     toks = tokens(text)
     if not toks:

@@ -24,21 +24,30 @@ class Variation:
         context: Optional[HarmonyContext] = None,
         per_style: int = 1,
         cue: Optional["Cue"] = None,
+        cues: Optional[List["Cue"]] = None,
     ) -> List[Take]:
-        """Return one take per requested style (defaults to a curated trio).
+        """Return takes for the requested styles.
 
-        All takes share the same ``cue`` — same changes, different solo color —
-        exactly like recording several takes over the same chord progression.
+        Mode A (default): all takes share the same ``cue`` — same changes,
+        different solo color, like several takes over one chord progression.
+
+        Mode B (``cues`` given): each take gets its *own* cue — the same theme
+        improvised down different paths, opening genuinely different directions.
         """
         chosen = styles or ["冷静观察", "象征增强", "心理深入"]
         takes: List[Take] = []
+        index = 0
         for style in chosen:
             for _ in range(max(1, per_style)):
+                take_cue = cue
+                if cues:
+                    take_cue = cues[index % len(cues)]
                 takes.append(
                     self.composer.compose(
-                        scene, mode=mode, style=style, context=context, cue=cue
+                        scene, mode=mode, style=style, context=context, cue=take_cue
                     )
                 )
+                index += 1
         return takes
 
     @staticmethod
