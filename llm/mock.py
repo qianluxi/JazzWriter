@@ -1,8 +1,9 @@
 """Offline provider — lets the whole system run with no network / no API key.
 
 It does not pretend to be a novelist. It composes constraint-respecting prose
-from the structured context so that the *pipeline* (prompt → take → evaluation
-→ motif tracking) can be exercised and tested end-to-end.
+from the structured context *and the jazz cue* (mode, seed, rhythm, surprises)
+so the pipeline — prompt → take → evaluation → motif tracking → retune — can be
+exercised and tested end-to-end, and so different modes visibly differ.
 """
 
 from __future__ import annotations
@@ -35,6 +36,11 @@ _EMOTION_LINES = [
     "{pov}说不出那是不是{emotion}，但{symbol}替他说了。",
     "那一刻的{emotion}很轻，轻得几乎不像真的。",
 ]
+_SURPRISE_LEAD = [
+    "直到他注意到一件事。",
+    "然后有什么不对了。",
+    "他一直以为自己看懂了，直到——",
+]
 
 
 class MockProvider(LLMProvider):
@@ -50,25 +56,31 @@ class MockProvider(LLMProvider):
         max_tokens: int = 1500,
     ) -> str:
         ctx = context or {}
-        seed_src = f"{prompt}|{ctx.get('chapter')}|{ctx.get('style')}"
+        cue = ctx.get("cue", {}) or {}
+        jazz_seed = cue.get("jazz_seed", {}) or {}
+        rhythm = (cue.get("rhythm", {}) or {}).get("name", "")
+        surprises = cue.get("surprises", []) or []
+
+        seed_src = f"{prompt}|{ctx.get('chapter')}|{ctx.get('style')}|{cue.get('seed_int')}"
         seed = int(hashlib.md5(seed_src.encode("utf-8")).hexdigest(), 16) % (2**32)
         rng = random.Random(seed)
 
         theme = ctx.get("theme", {}) or {}
         character = ctx.get("character", {}) or {}
         symbols: List[str] = list(theme.get("symbols") or []) or ["光"]
+        if jazz_seed.get("symbol"):
+            symbols = [jazz_seed["symbol"]] + symbols
         emotions: List[str] = list(theme.get("emotions") or []) or ["沉默"]
         motifs: List[str] = list(ctx.get("active_motifs") or theme.get("motifs") or []) or symbols
 
         pov = ctx.get("pov") or character.get("name") or "他"
         scene = (ctx.get("scene") or "").strip()
         scene_short = self._first_clause(scene) or "这一晚"
-        point = ctx.get("point") or rng.choice(emotions)
+        point = jazz_seed.get("emotion") or ctx.get("point") or rng.choice(emotions)
 
         fields = {
             "pov": pov,
             "symbol": rng.choice(symbols + motifs),
-            "symbol2": rng.choice(symbols + motifs),
             "emotion": point,
             "scene_short": scene_short,
             "desire": character.get("desire") or "把事情弄清楚",
@@ -87,14 +99,25 @@ class MockProvider(LLMProvider):
             + self._render(rng.choice(_CLOSERS), fields),
         ]
 
-        if scene:
-            scene_sentence = scene if scene.endswith(("。", ".", "！", "？")) else scene + "。"
-            paragraphs.insert(1, scene_sentence)
+        # tempo: bebop/free chop to essentials; adagio/ballad breathe more
+        if rhythm in ("bebop", "free"):
+            paragraphs = paragraphs[:2]
+        elif rhythm in ("adagio", "ballad") and scene:
+            paragraphs.insert(1, scene if scene.endswith(("。", ".", "！", "？")) else scene + "。")
+
+        if scene and rhythm not in ("adagio", "ballad"):
+            paragraphs.insert(1, scene if scene.endswith(("。", ".", "！", "？")) else scene + "。")
+
         paragraphs.append(self._render(rng.choice(_EMOTION_LINES), fields))
+
+        # controlled surprises become actual turns in the text
+        for surprise in surprises[:2]:
+            detail = (surprise or {}).get("detail", "")
+            if detail:
+                paragraphs.append(self._render(rng.choice(_SURPRISE_LEAD), fields) + detail)
+
         if rng.random() < 0.5:
-            paragraphs.append(
-                f"他想起{motifs[0]}。它今天的意思，和昨天不太一样。"
-            )
+            paragraphs.append(f"他想起{motifs[0]}。它今天的意思，和昨天不太一样。")
 
         text = "\n\n".join(p.strip() for p in paragraphs if p.strip())
         limit = max(280, max_tokens)

@@ -14,6 +14,7 @@ from rich.table import Table
 from core.improviser import MODES, STYLES
 from engine.composer import Take
 from engine.evaluator import Evaluation
+from improvisation.improvisation_score import MODE_PRESETS
 from session import Session
 from store import DATA_DIR, CHAPTERS_DIR, save_take
 
@@ -53,6 +54,16 @@ world:
   soft_constraints:
     - 允许非线性回忆
   emotion_curve: [平静, 不安, 疑惑, 发现, 否认, 理解]
+
+# 即兴层：受控的偏移(Controlled Divergence)
+jazz:
+  mode: classic_jazz      # classic_jazz | bebop | free_jazz
+  creativity: 0.5         # 创造程度
+  randomness: 0.4         # 随机扰动
+  motif_reuse: 0.8        # 主题重复
+  character_freedom: 0.6  # 人物自主性
+  surprise_level: 0.5     # 剧情转折
+  style_distance: 0.3     # 语言变化
 """
 
 _DEFAULT_CHARACTERS = """characters:
@@ -140,6 +151,53 @@ def _show_evaluation(evaluation: Evaluation) -> None:
         console.print(f"  [yellow]·[/yellow] {note}")
 
 
+_JAZZ_KEYS = ["creativity", "randomness", "motif_reuse",
+              "character_freedom", "surprise_level", "style_distance"]
+
+
+def _jazz_overrides(args) -> dict:
+    out = {}
+    for key in _JAZZ_KEYS:
+        value = getattr(args, key, None)
+        if value is not None:
+            out[key] = value
+    return out
+
+
+def _show_cue(take: Take) -> None:
+    cue = take.cue or {}
+    if not cue:
+        return
+    jazz_seed = cue.get("jazz_seed", {})
+    rhythm = cue.get("rhythm", {})
+    solo = cue.get("solo", {})
+    lines = [f"模式: {cue.get('mode')}　随机种子: {cue.get('seed_int')}"]
+    if jazz_seed:
+        lines.append("色彩: 情绪 {emotion}／视角 {perspective}／象征 {symbol}".format(
+            emotion=jazz_seed.get("emotion", "-"),
+            perspective=jazz_seed.get("perspective", "-"),
+            symbol=jazz_seed.get("symbol", "-"),
+        ))
+    if rhythm:
+        lines.append(f"节奏: {rhythm.get('name')}（{rhythm.get('pace')}）")
+    if solo:
+        lines.append(f"独奏: {solo.get('character')} · {solo.get('instrument')}")
+    for m in cue.get("motifs", []):
+        lines.append(f"动机变奏: {m.get('name')} → 第{m.get('stage')}次（{m.get('mode')}）")
+    surprises = cue.get("surprises", [])
+    if surprises:
+        for s in surprises:
+            lines.append(f"受控意外: [{s.get('category')}] {s.get('detail')}")
+    else:
+        lines.append("受控意外: 无")
+    console.print(Panel("\n".join(lines), title="即兴决策 · Jazz Cue", border_style="yellow"))
+
+
+def _show_advice(advice) -> None:
+    d = advice.to_dict()
+    console.print(Panel("\n".join(d["notes"]), title="下一轮调整建议 · Conductor", border_style="magenta"))
+
+
 def _build_session(args) -> Session:
     data_dir = Path(args.data) if getattr(args, "data", None) else DATA_DIR
     return Session.load(data_dir=data_dir, provider=getattr(args, "provider", None))
@@ -199,14 +257,18 @@ def cmd_play(args) -> int:
     take, evaluation = session.play(
         scene,
         pov=args.pov,
-        mode=args.mode,
         style=args.style,
         chapter=args.chapter,
         total_chapters=args.total,
         previous_summary=args.previous or "",
         extra_instructions=args.extra or "",
+        jazz_mode=args.mode,
+        seed=args.seed,
+        overrides=_jazz_overrides(args),
     )
+    _show_cue(take)
     _show_take(take, evaluation)
+    _show_advice(session.advise(take, evaluation))
     _save(take, evaluation, session, index=1, no_save=args.no_save)
     return 0
 
@@ -219,10 +281,12 @@ def cmd_takes(args) -> int:
         return 2
     styles = args.styles or ["冷静观察", "象征增强", "心理深入"]
     results = session.variations(
-        scene, pov=args.pov, mode=args.mode, styles=styles,
+        scene, pov=args.pov, styles=styles,
         chapter=args.chapter, total_chapters=args.total,
+        jazz_mode=args.mode, seed=args.seed, overrides=_jazz_overrides(args),
     )
     for i, (take, evaluation) in enumerate(results, start=1):
+        _show_cue(take)
         _show_take(take, evaluation)
         _save(take, evaluation, session, index=i, no_save=args.no_save)
     return 0
@@ -269,6 +333,23 @@ def cmd_styles(args) -> int:
     return 0
 
 
+def cmd_jazz(args) -> int:
+    session = _build_session(args)
+    current = session.jazz
+    console.print(Panel(
+        "\n".join(f"{k}: {v}" for k, v in current.to_dict().items() if k != "seed"),
+        title="当前即兴参数 · Jazz Params (data/story.yaml)", border_style="yellow"))
+
+    table = Table(title="模式预设 · Mode Presets", header_style="bold")
+    table.add_column("模式")
+    for key in _JAZZ_KEYS:
+        table.add_column(key, justify="right")
+    for mode, preset in MODE_PRESETS.items():
+        table.add_row(mode, *[f"{preset[k]:.2f}" for k in _JAZZ_KEYS])
+    console.print(table)
+    return 0
+
+
 def cmd_init(args) -> int:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     files = {
@@ -288,6 +369,18 @@ def cmd_init(args) -> int:
 
 
 # -- parser --------------------------------------------------------------------
+def _add_jazz_options(p: argparse.ArgumentParser) -> None:
+    p.add_argument("--mode", default="classic_jazz", choices=list(MODE_PRESETS.keys()),
+                   help="即兴模式: classic_jazz | bebop | free_jazz")
+    p.add_argument("--seed", type=int, default=None, help="随机种子（可复现一次演奏）")
+    p.add_argument("--creativity", type=float, default=None)
+    p.add_argument("--randomness", type=float, default=None)
+    p.add_argument("--motif-reuse", dest="motif_reuse", type=float, default=None)
+    p.add_argument("--character-freedom", dest="character_freedom", type=float, default=None)
+    p.add_argument("--surprise-level", dest="surprise_level", type=float, default=None)
+    p.add_argument("--style-distance", dest="style_distance", type=float, default=None)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="jazzwriter",
@@ -299,11 +392,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("status", help="显示主题/人物/和声/动机").set_defaults(func=cmd_status)
     sub.add_parser("styles", help="列出即兴模式与色彩").set_defaults(func=cmd_styles)
+    sub.add_parser("jazz", help="显示即兴参数与模式预设").set_defaults(func=cmd_jazz)
 
     p = sub.add_parser("play", help="生成一章即兴演奏")
     p.add_argument("scene", nargs="*", help="场景描述（也可用管道输入）")
     p.add_argument("--pov", default=None, help="视角人物")
-    p.add_argument("--mode", default="classic", choices=list(MODES.keys()))
     p.add_argument("--style", default="现实主义", help=" | ".join(STYLES.keys()))
     p.add_argument("--chapter", type=int, default=1)
     p.add_argument("--total", type=int, default=1, help="全书章节数（用于情绪坐标）")
@@ -311,16 +404,17 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--extra", default=None, help="额外指令")
     p.add_argument("--show-prompt", action="store_true")
     p.add_argument("--no-save", action="store_true")
+    _add_jazz_options(p)
     p.set_defaults(func=cmd_play)
 
     t = sub.add_parser("takes", help="同一场景生成多个版本 (Take)")
     t.add_argument("scene", nargs="*")
     t.add_argument("--pov", default=None)
-    t.add_argument("--mode", default="classic", choices=list(MODES.keys()))
     t.add_argument("--styles", nargs="*", default=None, help="要生成的色彩列表")
     t.add_argument("--chapter", type=int, default=1)
     t.add_argument("--total", type=int, default=1)
     t.add_argument("--no-save", action="store_true")
+    _add_jazz_options(t)
     t.set_defaults(func=cmd_takes)
 
     e = sub.add_parser("evaluate", help="评价一个已保存的章节文件")

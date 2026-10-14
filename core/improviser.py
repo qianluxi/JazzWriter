@@ -1,23 +1,27 @@
 """Improviser — the soloist's brief.
 
 It combines the fixed material (theme / character / harmony / motifs) with the
-live environment (scene) into a single, constraint-dense prompt. The point is
-*controlled* creation: rich enough to be alive, tight enough to stay in key.
+live environment (scene) and the conductor's *cue* (how far to travel from the
+theme) into a single, constraint-dense prompt. The point is *controlled*
+creation: alive enough to surprise, tight enough to stay in key.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 from core.character import Character
 from core.harmony import Harmony
 from core.motif import MotifLibrary
 from core.theme import Theme
 
-# Narrative improvisation modes ------------------------------------------------
+if TYPE_CHECKING:  # avoid a hard import cycle at runtime
+    from improvisation.improvisation_score import Cue
+
+# Narrative improvisation modes (aligned with the jazz parameter presets) ------
 MODES: Dict[str, str] = {
-    "classic": (
+    "classic_jazz": (
         "标准爵士：先陈述主题动机 → 变奏 → 制造冲突 → 回归主题（但已被改变）。"
         "节奏从容，靠细节与潜台词推进。"
     ),
@@ -25,10 +29,16 @@ MODES: Dict[str, str] = {
         "Bebop：高速、信息密度高、多线索并进、短句切分。"
         "适合悬疑/侦探，允许偶发性的锋利转折。"
     ),
-    "free": (
+    "free_jazz": (
         "自由爵士：非线性、重象征、留白、反情节。"
         "允许时间跳跃与感官碎片，情绪先于逻辑。"
     ),
+}
+MODE_ALIASES = {
+    "classic": "classic_jazz",
+    "standard": "classic_jazz",
+    "swing": "classic_jazz",
+    "free": "free_jazz",
 }
 
 # Solo "colors" used to generate alternative takes ----------------------------
@@ -40,6 +50,10 @@ STYLES: Dict[str, str] = {
     "冷峻": "短句、少形容词、留白多，情绪压在冰面下。",
     "抒情": "让节奏舒展，允许一处真正柔软的时刻。",
 }
+
+
+def canonical_mode(mode: str) -> str:
+    return MODE_ALIASES.get(mode, mode)
 
 
 @dataclass
@@ -79,13 +93,15 @@ class Improviser:
         self,
         scene: str,
         *,
-        mode: str = "classic",
+        mode: str = "classic_jazz",
         style: str = "现实主义",
         context: Optional[HarmonyContext] = None,
         extra_instructions: str = "",
+        cue: Optional["Cue"] = None,
     ) -> str:
+        mode = canonical_mode(mode)
         ctx = context or HarmonyContext()
-        mode_text = MODES.get(mode, MODES["classic"])
+        mode_text = MODES.get(mode, MODES["classic_jazz"])
         style_text = STYLES.get(style, style)
         point = self.harmony.curve_hint(ctx.resolved_position())
 
@@ -121,6 +137,9 @@ class Improviser:
         if self.motifs.all():
             sections += ["", "【动机复用 Motif（需变奏，不可原样重复）】", self.motifs.as_prompt(ctx.active_motifs or None)]
 
+        if cue is not None:
+            sections += ["", "【即兴决策 · Jazz Cue（本次演奏的乐谱）】", cue.directives()]
+
         if ctx.previous_summary:
             sections += ["", "【上文回顾（保持连续性，不要复述）】", ctx.previous_summary]
 
@@ -153,12 +172,14 @@ class Improviser:
         self,
         scene: str,
         *,
-        mode: str = "classic",
+        mode: str = "classic_jazz",
         style: str = "现实主义",
         context: Optional[HarmonyContext] = None,
+        cue: Optional["Cue"] = None,
     ) -> Dict[str, object]:
+        mode = canonical_mode(mode)
         ctx = context or HarmonyContext()
-        return {
+        data: Dict[str, object] = {
             "scene": scene.strip(),
             "mode": mode,
             "style": style,
@@ -171,3 +192,6 @@ class Improviser:
             "motifs": [m.name for m in self.motifs.all()],
             "active_motifs": ctx.active_motifs or self.motifs.names(),
         }
+        if cue is not None:
+            data["cue"] = cue.to_dict()
+        return data

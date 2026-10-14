@@ -15,3 +15,13 @@ world:
   soft_constraints:
     - 允许非线性回忆
   emotion_curve: [平静, 不安, 疑惑, 发现, 否认, 理解]
+
+# 即兴层：受控的偏移(Controlled Divergence)
+jazz:
+  mode: classic_jazz      # classic_jazz | bebop | free_jazz
+  creativity: 0.5         # 创造程度
+  randomness: 0.4         # 随机扰动
+  motif_reuse: 0.8        # 主题重复
+  character_freedom: 0.6  # 人物自主性
+  surprise_level: 0.5     # 剧情转折
+  style_distance: 0.3     # 语言变化

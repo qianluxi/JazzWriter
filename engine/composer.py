@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import datetime as _dt
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from core.harmony import Harmony
 from core.improviser import HarmonyContext, Improviser
 from llm.base import LLMProvider
+
+if TYPE_CHECKING:
+    from improvisation.improvisation_score import Cue
 
 
 @dataclass
@@ -16,13 +19,14 @@ class Take:
     text: str
     prompt: str
     chapter: int = 1
-    mode: str = "classic"
+    mode: str = "classic_jazz"
     style: str = "现实主义"
     pov: str = ""
     scene: str = ""
     provider: str = ""
     created_at: str = ""
     harmony_violations: List[str] = field(default_factory=list)
+    cue: Dict[str, Any] = field(default_factory=dict)
     context: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -36,6 +40,7 @@ class Take:
             "provider": self.provider,
             "created_at": self.created_at,
             "harmony_violations": self.harmony_violations,
+            "cue": self.cue,
             "prompt": self.prompt,
             "context": self.context,
         }
@@ -56,12 +61,13 @@ class Composer:
         self,
         scene: str,
         *,
-        mode: str = "classic",
+        mode: str = "classic_jazz",
         style: str = "现实主义",
         context: Optional[HarmonyContext] = None,
         extra_instructions: str = "",
         temperature: float = 0.9,
         max_tokens: int = 1500,
+        cue: Optional["Cue"] = None,
     ) -> Take:
         ctx = context or HarmonyContext()
         prompt = self.improviser.create_prompt(
@@ -70,9 +76,10 @@ class Composer:
             style=style,
             context=ctx,
             extra_instructions=extra_instructions,
+            cue=cue,
         )
         llm_context = self.improviser.build_context(
-            scene, mode=mode, style=style, context=ctx
+            scene, mode=mode, style=style, context=ctx, cue=cue
         )
         text = self.llm.generate(
             prompt,
@@ -91,5 +98,6 @@ class Composer:
             provider=getattr(self.llm, "name", "?"),
             created_at=_dt.datetime.now().isoformat(timespec="seconds"),
             harmony_violations=self.harmony.violations(text),
+            cue=cue.to_dict() if cue is not None else {},
             context=llm_context,
         )

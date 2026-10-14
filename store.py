@@ -35,6 +35,11 @@ def load_story(path: Optional[Path] = None) -> Tuple[Theme, Harmony]:
     return theme, harmony
 
 
+def load_jazz(path: Optional[Path] = None) -> Dict[str, Any]:
+    data = _load_yaml(path or (DATA_DIR / "story.yaml"))
+    return data.get("jazz", {}) or {}
+
+
 def load_characters(path: Optional[Path] = None) -> Dict[str, Character]:
     data = _load_yaml(path or (DATA_DIR / "characters.yaml"))
     result: Dict[str, Character] = {}
