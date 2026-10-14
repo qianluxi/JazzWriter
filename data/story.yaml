@@ -1,0 +1,17 @@
+theme:
+  title: "蒸汽时代的人类孤独"
+  question: "技术在进步，人是否更接近幸福"
+  statement: "我们造出了轰鸣的机器，却学会了更安静地彼此远离。"
+  emotions: [孤独, 怀疑, 希望]
+  symbols: [蒸汽, 雾, 老机械]
+  motifs: [蒸汽, 阀门]
+
+world:
+  world: "蒸汽工业城市，齿轮与管道构成城市的血管。"
+  rules:
+    - 蒸汽能源重塑了社会，阶层以能否接触核心机械划分
+    - 技术事故被系统性掩盖
+  forbidden: [魔法, 超自然解释]
+  soft_constraints:
+    - 允许非线性回忆
+  emotion_curve: [平静, 不安, 疑惑, 发现, 否认, 理解]

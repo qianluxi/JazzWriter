@@ -1,0 +1,29 @@
+characters:
+  - name: 林
+    role: 检修工程师
+    desire: 查清父亲那场事故的真相
+    fear: 发现父亲也是共谋，而自己正重复他
+    memory: 童年时父亲消失在泄压的白雾里
+    worldview: 任何故障都有可查明的原因
+    contradiction: 相信理性，却在做决定时凭直觉
+    voice: 短句，专业术语夹在日常里
+    rules:
+      - 遇到未知：先测量，再记录，最后才允许害怕
+      - 遇到危险：把情绪压进技术动作里
+      - 遇到过去：回避，用工作转移
+    arc_from: 相信技术中立
+    arc_to: 承认技术是人的欲望的延长
+
+  - name: 苏
+    role: 档案管理员
+    desire: 让被抹去的名字重新出现
+    fear: 自己保存的记忆也被改写
+    memory: 亲手烧掉过一份名单
+    worldview: 记忆即权力
+    contradiction: 守护真相，却依赖谎言生存
+    voice: 缓慢、反问、留白
+    rules:
+      - 遇到权威：既不服从也不正面冲撞
+      - 遇到弱者：多说一句
+    arc_from: 守护档案
+    arc_to: 成为档案本身
