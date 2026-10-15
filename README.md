@@ -28,6 +28,16 @@ pip install -r requirements.txt
 
 无需任何 API Key 即可运行（内置离线 `mock` provider，用于打通流程）。
 
+## 图形界面（推荐给非开发者）
+
+```powershell
+python gui.py
+```
+
+或直接双击根目录的 **`JazzWriter.bat`**。界面左侧填场景、选模式/人物/风格、调即兴参数，
+点「▶ 演奏一章」；右侧标签页分别显示 **正文 / 即兴决策(Cue) / 评价 / 建议 / 状态 / 历史**。
+另有「多版本 · 探索路径」和「下一章场景建议」。仅用标准库 Tkinter，无需额外安装。
+
 ## 使用
 
 ```powershell
