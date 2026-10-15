@@ -35,6 +35,7 @@ class ChapterPlan(Model):
     hook_to: str = ""             # 抛向下一章的驱动力
     summary: str = ""             # 一两句情节摘要
     status: str = "candidate"     # candidate | accepted | locked
+    locked_fields: List[str] = Field(default_factory=list)  # field-level locks
     notes: str = ""
 
     @property
@@ -44,6 +45,9 @@ class ChapterPlan(Model):
     @property
     def locked(self) -> bool:
         return self.status == "locked"
+
+    def is_field_locked(self, name: str) -> bool:
+        return name in self.locked_fields
 
     def to_dict(self) -> Dict:
         return super().to_dict()
@@ -70,12 +74,16 @@ FIELDS = [
 ]
 _LABEL_TO_FIELD = {label: field_name for field_name, label in FIELDS}
 _LIST_FIELDS = {"threads", "motifs"}
+FIELD_NAMES = [field_name for field_name, _ in FIELDS]
 
 
 def to_text(ch: ChapterPlan) -> str:
     """Serialize a chapter card to an editable ``字段：值`` text block."""
     head = f"第 {ch.number} 章 · {ch.title}　[{ch.status}]"
-    lines = [head, ""]
+    lines = [head]
+    if ch.locked_fields:
+        lines.append("🔒锁定字段：" + "、".join(ch.locked_fields))
+    lines.append("")
     for field_name, label in FIELDS:
         value = getattr(ch, field_name)
         if isinstance(value, list):

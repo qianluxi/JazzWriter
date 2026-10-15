@@ -27,6 +27,7 @@ from engine.structure_evaluator import StructureEvaluator, StructureReport
 from engine.variation import Variation
 from feedback.conductor import Advice, Conductor
 from improvisation.improvisation_score import Cue, ImprovisationScore, JazzParams, params_for_mode
+from jam_session import JamResult, JamSession
 from llm import get_provider
 from llm.base import LLMProvider
 from store import (
@@ -427,12 +428,31 @@ class Session:
             book, len(book.chapters()) or 12, template=book.structure_template,
             seed=seed if seed is not None else (self.effective_params().seed or 0))
         for c in book.chapters():
-            if c.number not in regen_set and c.number in snapshot:
-                saved = ChapterPlan.from_dict(snapshot[c.number])
-                for field_name, value in saved.to_dict().items():
+            saved = snapshot.get(c.number)
+            if saved is None:
+                continue
+            if c.number not in regen_set:
+                restored = ChapterPlan.from_dict(saved)
+                for field_name, value in restored.to_dict().items():
                     setattr(c, field_name, value)
+            else:
+                # regenerated, but field-level locks are preserved
+                c.locked_fields = list(saved.get("locked_fields", []))
+                for field_name in c.locked_fields:
+                    if field_name in saved:
+                        setattr(c, field_name, saved[field_name])
         save_book_plan(book)
         return book, sorted(regen_set)
+
+    def lock_field(self, number: int, field_name: str) -> BookPlan:
+        self._require_book().lock_field(number, field_name)
+        save_book_plan(self.book)
+        return self.book
+
+    def unlock_field(self, number: int, field_name: str) -> BookPlan:
+        self._require_book().unlock_field(number, field_name)
+        save_book_plan(self.book)
+        return self.book
 
     def export_outline(self, path=None) -> Path:
         return export_book_outline(self._require_book(), path)
@@ -483,6 +503,31 @@ class Session:
         if ch.motifs:
             extra.append("意象：" + "、".join(ch.motifs))
         return head + ("（" + "；".join(extra) + "）" if extra else "")
+
+    # -- Jam Session (V0.7) -------------------------------------------------
+    def jam(self, scene: str, *, pov=None, chapter_number=None,
+            use_llm: bool = True) -> JamResult:
+        llm = None
+        if use_llm and getattr(self.provider, "name", "mock") not in ("mock", ""):
+            llm = self.provider
+        pov_name = self.character(pov).name if (pov or self.characters) else None
+        session = JamSession(
+            self.theme, self.characters, book=self.book,
+            story_state=self.story_state, motifs=self.motifs, llm=llm)
+        return session.run(scene, pov=pov_name, chapter_number=chapter_number)
+
+    def jam_to_take(self, jam: JamResult, *, pov=None, style: str = "现实主义",
+                    jazz_mode=None, seed=None, overrides=None, chapter: int = 1,
+                    total_chapters: int = 1, save: bool = True):
+        take, eva = self.play(
+            jam.proposal, pov=pov or jam.brief.pov or None, style=style,
+            chapter=chapter, total_chapters=total_chapters, jazz_mode=jazz_mode,
+            seed=seed, overrides=overrides, record=True)
+        if save:
+            save_take(take, eva, index=chapter)
+            self.record_motifs(take)
+            self.persist_motifs()
+        return take, eva
 
     # -- run records --------------------------------------------------------
     def _record_run(self, take: Take, evaluation: Evaluation, cue: Cue,

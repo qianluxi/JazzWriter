@@ -70,6 +70,12 @@ python main.py outline "一场技术事故改变了一个家庭" --fuse 1 2
 # 编辑某章卡片：准备一个「字段：值」文本文件再导入
 python main.py outline --edit 3 --file card.txt
 
+# 字段级锁定：重生成时保留该字段
+python main.py outline --lock-field 3 conflict
+
+# 顺序合奏：导演 → 独奏 → 观察 → 编辑（--render 用提案渲染正文）
+python main.py jam "深夜。检修井底，阀门自己转动了。" --pov 林 --render
+
 # 4) 按结构渲染正文（可选局部演练）
 python main.py book --from-plan --pov 林 --no-save
 ```
@@ -255,6 +261,11 @@ openai 与 opencode 两个后端都可用；不设任何 Key 时仍可用 `mock`
   motif_transformation / revelation_delay / branch_count / continuity_strength`。
 - 有真实模型时（opencode / openai）由模型产出结构与章节卡片；否则用**确定性生成器**离线跑通（可测试、可复现）。
 - 结构评价独立于文本评价；留白与开放结局不会被机械扣分。
+- **POV 分布**：`multi_pov` 平衡交错并避免视角长跑；`ensemble` 分配连续视角弧；关键转折章（高潮/收束/汇合…）收束到主角视角。
+- **字段级锁定**：`ChapterPlan.locked_fields`——重生成时保留被锁字段；整章锁定时永不改写。
+- **Jam Session（V0.7）**：`jam_session/` 顺序合奏——Director（方向与限制）→ Soloist（人物驱动的行动）→
+  Observer（非中心细节／边缘视角）→ Editor（比较、剔除矛盾与提前揭露、整合提案）。角色任务不同，
+  不各自重写正文；Editor 只给**提案**，不自动升级为正式设定。`python main.py jam "..."`。
 
 ## 数据文件（乐谱）
 
@@ -323,7 +334,9 @@ data/
 - V0.6 ◑ 长篇记忆与闭环：`StoryState` 故事圣经 / `scene_planner` 场景骨架 / `Conductor` 可撤销参数闭环 / 文学回听信号（向量记忆待做）
 - **V2.0 ✅ 定位转向「结构即兴引擎」**：`BookPlan/VolumePlan/ChapterPlan` + 故事级发散 +
   结构校验（六维/问题式）+ 锁定与影响追踪 + 结构工作台 GUI（并发安全）+ 结构导出；正文生成降级为可选。
-- V0.7 ⏳ Jam Session：Director + Soloist + Observer + Editor 顺序合奏
+- **V2.1 ✅ 融合 / 卡片编辑 / 范围重生成**。
+- **V2.2 ✅ POV 分布优化 + 字段级锁定 + Jam Session（V0.7）**。
+- V0.7 ✅ Jam Session：Director + Soloist + Observer + Editor 顺序合奏。
 - V1.0 ⏳ 向量记忆：章节 embedding、叙事偏离检测、动机演变/人物弧可视化
 
 核心循环：**设定 → 即兴决策 → 生成多个可能性 → 回听与比较 → 作者选择 → 更新故事状态 → 下一轮即兴。**

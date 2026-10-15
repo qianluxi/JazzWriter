@@ -11,7 +11,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from core.chapter_plan import apply_text, to_text
+from core.chapter_plan import FIELD_NAMES, apply_text, to_text
 from core.improviser import MODES, STYLES
 from engine.composer import Take
 from engine.evaluator import Evaluation
@@ -477,6 +477,25 @@ def cmd_outline(args) -> int:
         session.unlock_chapter(args.unlock)
         console.print(f"[green]已解锁第 {args.unlock} 章[/green]")
         return 0
+    if args.lock_field or args.unlock_field:
+        spec = args.lock_field or args.unlock_field
+        try:
+            number, field_name = int(spec[0]), spec[1]
+        except (ValueError, IndexError):
+            console.print("[red]用法：--lock-field N FIELD（如 --lock-field 3 conflict）[/red]")
+            return 2
+        if field_name not in FIELD_NAMES:
+            console.print(f"[yellow]未知字段 {field_name}；可用：{'、'.join(FIELD_NAMES)}[/yellow]")
+            return 2
+        if args.lock_field:
+            session.lock_field(number, field_name)
+            console.print(f"[green]已锁定第 {number} 章的字段 {field_name}[/green]")
+        else:
+            session.unlock_field(number, field_name)
+            console.print(f"[green]已解锁第 {number} 章的字段 {field_name}[/green]")
+        ch = session.book.chapter(number)
+        console.print(f"[dim]当前锁定字段：{ch.locked_fields or '无'}[/dim]")
+        return 0
     if args.edit is not None:
         if not args.file:
             console.print("[red]--edit 需要配合 --file 指定卡片文本（字段：值）。[/red]")
@@ -569,6 +588,38 @@ def cmd_outline(args) -> int:
         _print_structure(report)
         console.print("[dim]下一步：`outline --lock N` 锁定认可章节；`outline --reimprovise N` "
                       "重新即兴；`outline --export` 导出；`book --from-plan` 渲染正文。[/dim]")
+    return 0
+
+
+def cmd_jam(args) -> int:
+    session = _build_session(args)
+    scene = _read_scene(args)
+    if not scene:
+        console.print("[red]缺少场景。[/red]")
+        return 2
+    result = session.jam(scene, pov=args.pov, chapter_number=args.chapter,
+                         use_llm=not getattr(args, "no_llm", False))
+    console.print(Panel(
+        f"目标：{result.brief.goal}\n方向：{result.brief.direction}\n"
+        f"约束：" + ("；".join(result.brief.constraints) or "（无）"),
+        title="导演 · Director", border_style="blue"))
+    console.print(Panel("\n".join(f"- {m}" for m in result.solo),
+                        title="独奏 · Soloist", border_style="green"))
+    console.print(Panel("\n".join(f"- {d}" for d in result.observer),
+                        title="观察 · Observer", border_style="cyan"))
+    body = result.proposal
+    if result.notes:
+        body += "\n\n备注：\n" + "\n".join(f"· {n}" for n in result.notes)
+    if result.removed:
+        body += "\n\n被排除（疑似提前揭露）：\n" + "\n".join(f"· {r}" for r in result.removed)
+    console.print(Panel(body, title="编辑 · Editor 提案", border_style="magenta"))
+
+    if args.render:
+        take, evaluation = session.jam_to_take(
+            result, pov=args.pov, style=args.style, jazz_mode=args.mode,
+            seed=args.seed, overrides=_jazz_overrides(args), chapter=args.chapter or 1,
+            total_chapters=args.total, save=not args.no_save)
+        _show_take(take, evaluation)
     return 0
 
 
@@ -861,6 +912,10 @@ def build_parser() -> argparse.ArgumentParser:
                     help="配合 --reimprovise：逗号分隔要重生成的章号，或 all")
     ol.add_argument("--lock", type=int, default=None, help="锁定指定章")
     ol.add_argument("--unlock", type=int, default=None, help="解锁指定章")
+    ol.add_argument("--lock-field", dest="lock_field", nargs=2, metavar=("N", "FIELD"),
+                    default=None, help="锁定某章的单个字段（如 --lock-field 3 conflict）")
+    ol.add_argument("--unlock-field", dest="unlock_field", nargs=2, metavar=("N", "FIELD"),
+                    default=None, help="解锁某章的单个字段")
     ol.add_argument("--validate", action="store_true", help="校验已保存的 BookPlan")
     ol.add_argument("--export", action="store_true", help="导出结构为 Markdown")
     _add_jazz_options(ol)
@@ -883,6 +938,18 @@ def build_parser() -> argparse.ArgumentParser:
     pl.add_argument("--count", type=int, default=3)
     pl.add_argument("--seed", type=int, default=None)
     pl.set_defaults(func=cmd_plan)
+
+    jm = sub.add_parser("jam", help="Jam Session：导演→独奏→观察→编辑")
+    jm.add_argument("scene", nargs="*", help="场景（也可管道输入）")
+    jm.add_argument("--pov", default=None)
+    jm.add_argument("--chapter", type=int, default=None, help="对应 BookPlan 的章号（可选）")
+    jm.add_argument("--total", type=int, default=1)
+    jm.add_argument("--style", default="现实主义")
+    jm.add_argument("--render", action="store_true", help="用 Editor 提案渲染正文")
+    jm.add_argument("--no-save", action="store_true")
+    jm.add_argument("--no-llm", dest="no_llm", action="store_true", help="强制确定性（不使用模型）")
+    _add_jazz_options(jm)
+    jm.set_defaults(func=cmd_jam)
 
     e = sub.add_parser("evaluate", help="评价一个已保存的章节文件")
     e.add_argument("file")

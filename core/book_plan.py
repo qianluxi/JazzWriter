@@ -73,6 +73,16 @@ class BookPlan(Model):
     def locked_numbers(self) -> List[int]:
         return [c.number for c in self.chapters() if c.locked]
 
+    def lock_field(self, number: int, field_name: str) -> None:
+        c = self.chapter(number)
+        if c and field_name and field_name not in c.locked_fields:
+            c.locked_fields.append(field_name)
+
+    def unlock_field(self, number: int, field_name: str) -> None:
+        c = self.chapter(number)
+        if c and field_name in c.locked_fields:
+            c.locked_fields.remove(field_name)
+
     def affected_downstream(self, number: int) -> List[int]:
         """Chapters after ``number`` whose plans may depend on it."""
         return [n for n in self.chapter_numbers() if n > number]

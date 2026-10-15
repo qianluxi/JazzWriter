@@ -182,6 +182,7 @@ class App:
 
         ttk.Label(p, text="② 局部演练（可选）", foreground="#06c").pack(anchor="w", pady=(6, 0))
         self._btn(p, "按结构渲染正文", self.on_render)
+        self._btn(p, "Jam Session（导演/独奏/观察/编辑）", self.on_jam)
         self._btn(p, "▶ 演奏一章（试写）", self.on_play)
         self._btn(p, "≣ 多版本 · 探索路径", self.on_takes)
         self._btn(p, "下一章场景建议", self.on_plan)
@@ -210,7 +211,7 @@ class App:
         self.nb.pack(fill="both", expand=True)
         self.tabs: dict[str, tk.Text] = {}
 
-        for name in ["创意候选", "全书结构", "章节卡片", "正文", "即兴决策", "评价", "建议", "状态", "历史"]:
+        for name in ["创意候选", "全书结构", "章节卡片", "Jam", "正文", "即兴决策", "评价", "建议", "状态", "历史"]:
             frame = ttk.Frame(self.nb)
             txt = tk.Text(frame, wrap="word", state="disabled", padx=8, pady=6)
             sb = ttk.Scrollbar(frame, command=txt.yview)
@@ -539,6 +540,38 @@ class App:
         self._set_tab("正文", "\n".join(body))
         self._set_tab("评价", "\n\n".join(evals))
         self.nb.select(list(self.tabs).index("正文"))
+
+    def on_jam(self) -> None:
+        if self.session is None:
+            return
+        snap = self._snapshot()
+        if not snap["scene"]:
+            messagebox.showwarning("缺少场景", "请先填写场景。")
+            return
+        book = self.session.book
+        chapter_number = snap["chapter"] if (book and book.chapter(snap["chapter"])) else None
+
+        def work():
+            return self.session.jam(snap["scene"], pov=snap["pov"], chapter_number=chapter_number)
+
+        self._async(work, self._render_jam, label="Jam Session…")
+
+    def _render_jam(self, result) -> None:
+        lines = ["【导演 Director】",
+                 f"  目标：{result.brief.goal}",
+                 f"  方向：{result.brief.direction}",
+                 f"  约束：{'；'.join(result.brief.constraints) or '（无）'}",
+                 "", "【独奏 Soloist】"]
+        lines += [f"  - {m}" for m in result.solo]
+        lines += ["", "【观察 Observer】"]
+        lines += [f"  - {d}" for d in result.observer]
+        lines += ["", "【编辑 Editor · 提案】", result.proposal]
+        if result.removed:
+            lines += ["", "被排除（疑似提前揭露）："] + [f"  - {r}" for r in result.removed]
+        if result.notes:
+            lines += [""] + [f"  ({n})" for n in result.notes]
+        self._set_tab("Jam", "\n".join(lines))
+        self.nb.select(list(self.tabs).index("Jam"))
 
     def on_play(self) -> None:
         if self.session is None:

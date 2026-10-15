@@ -34,6 +34,11 @@ TEMPLATE_LABELS = {
 }
 
 
+# functions where the cast should converge on the protagonist's POV
+CONVERGE_FUNCS = {"高潮", "收束", "反转", "汇合", "重组", "指认", "回应"}
+MULTI_POV_TEMPLATES = {"multi_pov", "ensemble"}
+
+
 def _sequence(template: str, n: int) -> List[str]:
     seq = TEMPLATES.get(template, TEMPLATES["linear_causality"])
     if n <= 1:
@@ -60,6 +65,7 @@ class OutlineExpander:
         rng = random.Random(seed if seed is not None else 0)
 
         functions = _sequence(template, chapter_count)
+        povs = self._pov_plan(chapter_count, template, rng)
         motifs = (self.theme.motifs or self.theme.symbols) or ["意象"]
         turns = book.key_turns or [f"阶段{i+1}" for i in range(1)]
 
@@ -78,7 +84,9 @@ class OutlineExpander:
         for i in range(chapter_count):
             fn = functions[i]
             turn = turns[i % len(turns)]
-            pov = self.cast[i % len(self.cast)]
+            pov = povs[i]
+            if template in MULTI_POV_TEMPLATES and fn in CONVERGE_FUNCS:
+                pov = self.cast[0]  # converge on the protagonist for turning points
             active_threads = [t for t, s in schedule.items() if s["intro"] == i]
             reveal_threads = [t for t, s in schedule.items() if s["reveal"] == i and s["intro"] != i]
             ch_motifs = [motifs[i % len(motifs)], motifs[(i + 1) % len(motifs)]]
@@ -110,6 +118,37 @@ class OutlineExpander:
 
         book.volumes = self._group_volumes(book, chapters, template)
         return book
+
+    def _pov_plan(self, n: int, template: str, rng: random.Random) -> List[str]:
+        """Distribute viewpoints sensibly per structure template."""
+        cast = self.cast or ["主角"]
+        m = len(cast)
+        if m == 1:
+            return [cast[0]] * n
+        if template == "ensemble":
+            # contiguous arcs, balanced, order shuffled
+            order = cast[:]
+            rng.shuffle(order)
+            sizes = [n // m] * m
+            for i in range(n % m):
+                sizes[i] += 1
+            seq: List[str] = []
+            for c, size in zip(order, sizes):
+                seq.extend([c] * size)
+            return seq
+        if template == "multi_pov":
+            # interleaved but balanced; shuffle each round and rotate the seam
+            # so the same viewpoint never runs on across a cycle boundary
+            order = cast[:]
+            rng.shuffle(order)
+            seq: List[str] = []
+            while len(seq) < n:
+                cycle = order[:]
+                if seq and len(cycle) > 1 and cycle[0] == seq[-1]:
+                    cycle = cycle[1:] + cycle[:1]
+                seq.extend(cycle)
+            return seq[:n]
+        return [cast[i % m] for i in range(n)]
 
     # -- field synthesis ----------------------------------------------------
     def _conflict(self, fn: str, turn: str, pov: str, book: BookPlan) -> str:
