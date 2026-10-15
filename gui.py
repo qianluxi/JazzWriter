@@ -70,8 +70,8 @@ class App:
         bar.pack(fill="x")
         ttk.Label(bar, text="模型:").pack(side="left")
         self.provider_var = tk.StringVar(value="mock")
-        ttk.Combobox(bar, textvariable=self.provider_var, values=["mock", "openai"],
-                     width=8, state="readonly").pack(side="left", padx=(4, 12))
+        ttk.Combobox(bar, textvariable=self.provider_var, values=["mock", "opencode", "openai"],
+                     width=10, state="readonly").pack(side="left", padx=(4, 12))
         ttk.Label(bar, text="评价:").pack(side="left")
         self.eval_var = tk.StringVar(value="lexical")
         ttk.Combobox(bar, textvariable=self.eval_var, values=list(EVAL_MODES),

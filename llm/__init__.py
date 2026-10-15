@@ -25,4 +25,8 @@ def get_provider(name: Optional[str] = None, **kwargs) -> LLMProvider:
         from llm.openai_provider import OpenAIProvider
 
         return OpenAIProvider(**kwargs)
-    raise LLMError(f"unknown provider: {resolved!r} (use 'mock' or 'openai')")
+    if resolved in ("opencode", "oc"):
+        from llm.opencode_provider import OpenCodeProvider
+
+        return OpenCodeProvider(**kwargs)
+    raise LLMError(f"unknown provider: {resolved!r} (use 'mock' | 'openai' | 'opencode')")

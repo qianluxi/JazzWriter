@@ -9,4 +9,5 @@ output/runs/*
 !output/runs/.gitkeep
 output/advice_history.jsonl
 data/jazz_state.yaml
+data/motif_state.yaml
 .pytest_cache/

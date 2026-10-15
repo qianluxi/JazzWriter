@@ -124,6 +124,30 @@ python main.py play "..." --provider openai
 
 或用环境变量 `NJE_PROVIDER=openai` 设为默认。
 
+### 用 opencode 自己的模型（opencode serve）
+
+JazzWriter 可以**直接复用 opencode 已连接的大模型**（OpenCode Zen / Go，或你 `/connect` 过的任意 provider），
+无需单独配置 API Key——它通过本地 opencode server 调用：
+
+```powershell
+# 1) 另开一个终端，启动 opencode 服务器（默认端口 4096）
+opencode serve --port 4096
+
+# 2) 在 JazzWriter 里选择 opencode 后端
+python main.py play "..." --provider opencode
+#   或 GUI 顶部「模型」下拉选 opencode
+```
+
+可选环境变量：
+
+```powershell
+$env:NJE_OPENCODE_URL = "http://127.0.0.1:4096"      # 默认值
+$env:NJE_OPENCODE_MODEL = "anthropic/claude-sonnet-4" # 不设则用服务器默认模型
+$env:OPENCODE_SERVER_PASSWORD = "..."                 # 若服务器开了 basic auth
+```
+
+openai 与 opencode 两个后端都可用；不设任何 Key 时仍可用 `mock` 离线跑通流程。
+
 ## 即兴层 · Controlled Divergence
 
 世界设定 → 人物 → 剧情结构 → **【即兴层】** → 文本。即兴层在每次演奏前发一张

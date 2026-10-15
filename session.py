@@ -52,6 +52,7 @@ class Session:
         jazz: Optional[JazzParams] = None,
         story_state: Optional[StoryState] = None,
         eval_mode: str = "lexical",
+        motif_state_path: Optional[Path] = None,
     ) -> None:
         self.theme = theme
         self.harmony = harmony
@@ -62,6 +63,7 @@ class Session:
         self.jazz = jazz or JazzParams()
         self.story_state = story_state or StoryState()
         self.eval_mode = eval_mode
+        self.motif_state_path = motif_state_path
 
     # -- construction -------------------------------------------------------
     @classmethod
@@ -75,7 +77,7 @@ class Session:
         base = Path(data_dir) if data_dir else DATA_DIR
         theme, harmony = load_story(base / "story.yaml")
         characters = load_characters(base / "characters.yaml")
-        motifs = load_motifs(base / "motifs.yaml")
+        motifs = load_motifs(base / "motifs.yaml", base / "motif_state.yaml")
         motifs.ensure(theme.motifs)
         state = load_story_state(base / "story_state.yaml")
         # runtime state (jazz_state.yaml) wins over author default (story.yaml)
@@ -89,6 +91,7 @@ class Session:
             jazz=jazz,
             story_state=state,
             eval_mode=eval_mode,
+            motif_state_path=base / "motif_state.yaml",
         )
 
     def character(self, name: Optional[str] = None) -> Character:
@@ -404,7 +407,7 @@ class Session:
                 )
 
     def persist_motifs(self) -> Path:
-        return save_motifs(self.motifs)
+        return save_motifs(self.motifs, self.motif_state_path)
 
     @staticmethod
     def _quote(text: str, needle: str, span: int = 18) -> str:

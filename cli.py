@@ -603,7 +603,8 @@ def build_parser() -> argparse.ArgumentParser:
         prog="jazzwriter",
         description="Novel Jazz Engine — 像爵士乐手一样即兴写小说。",
     )
-    parser.add_argument("--provider", default=None, help="mock | openai (默认 NJE_PROVIDER 或 mock)")
+    parser.add_argument("--provider", default=None,
+                        help="mock | opencode | openai (默认 NJE_PROVIDER 或 mock)")
     parser.add_argument("--data", default=None, help="数据目录 (默认 ./data)")
     parser.add_argument("--eval-mode", dest="eval_mode", default="lexical", choices=list(EVAL_MODES),
                         help="评价方式: lexical | embedding | hybrid")

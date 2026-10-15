@@ -4,4 +4,6 @@ rich>=13.0
 
 # Optional: real LLM backends
 # openai>=1.0        # OpenAI / DeepSeek / Qwen / any OpenAI-compatible endpoint
-# requests>=2.31     # fallback HTTP client if you prefer raw calls
+#
+# opencode backend needs NO extra dependency: it talks to a local
+# `opencode serve` server over HTTP using only the standard library.

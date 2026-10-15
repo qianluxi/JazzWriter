@@ -24,6 +24,8 @@ RUNS_DIR = OUTPUT_DIR / "runs"
 ADVICE_PATH = OUTPUT_DIR / "advice_history.jsonl"
 STATE_PATH = DATA_DIR / "story_state.yaml"
 JAZZ_STATE_PATH = DATA_DIR / "jazz_state.yaml"
+MOTIF_DEF_PATH = DATA_DIR / "motifs.yaml"
+MOTIF_STATE_PATH = DATA_DIR / "motif_state.yaml"
 
 
 def _load_yaml(path: Path) -> Dict[str, Any]:
@@ -54,13 +56,30 @@ def load_characters(path: Optional[Path] = None) -> Dict[str, Character]:
     return result
 
 
-def load_motifs(path: Optional[Path] = None) -> MotifLibrary:
-    data = _load_yaml(path or (DATA_DIR / "motifs.yaml"))
-    return MotifLibrary.from_dict(data)
+def load_motifs(
+    path: Optional[Path] = None,
+    state_path: Optional[Path] = None,
+) -> MotifLibrary:
+    """Load motif *definitions* from motifs.yaml, then overlay runtime history
+    from the (gitignored) motif_state.yaml so the tracked sample stays clean."""
+    data = _load_yaml(path or MOTIF_DEF_PATH)
+    library = MotifLibrary.from_dict(data)
+    state = _load_yaml(state_path or MOTIF_STATE_PATH)
+    if state:
+        for item in state.get("motifs", []):
+            name = item.get("name")
+            if not name:
+                continue
+            motif = library.get(name)
+            if item.get("note"):
+                motif.note = item["note"]
+            motif.history = list(item.get("history", []))
+    return library
 
 
 def save_motifs(library: MotifLibrary, path: Optional[Path] = None) -> Path:
-    target = path or (DATA_DIR / "motifs.yaml")
+    """Persist runtime history to motif_state.yaml (not the tracked definitions)."""
+    target = path or MOTIF_STATE_PATH
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("w", encoding="utf-8") as fh:
         yaml.safe_dump(library.to_dict(), fh, allow_unicode=True, sort_keys=False)
