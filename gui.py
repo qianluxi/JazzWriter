@@ -93,8 +93,10 @@ class App:
     def _build_controls(self, parent) -> None:
         ttk.Label(parent, text="场景 Scene").pack(anchor="w")
         self.scene_text = tk.Text(parent, width=42, height=6, wrap="word")
-        self.scene_text.pack(fill="x", pady=(2, 8))
+        self.scene_text.pack(fill="x", pady=(2, 2))
         self.scene_text.insert("1.0", "冬夜。学校食堂，一台报废的蒸汽机仍在运行。")
+        ttk.Label(parent, text="提示：多行时「生成全书」会每行生成一章（# 开头为注释）",
+                  foreground="#888", wraplength=330, justify="left").pack(anchor="w", pady=(0, 6))
 
         grid = ttk.Frame(parent)
         grid.pack(fill="x")
@@ -149,6 +151,7 @@ class App:
         btns = ttk.Frame(parent)
         btns.pack(fill="x", pady=(10, 0))
         ttk.Button(btns, text="▶ 演奏一章", command=self.on_play).pack(fill="x", pady=2)
+        ttk.Button(btns, text="⇒ 生成全书（每行一章）", command=self.on_book).pack(fill="x", pady=2)
         ttk.Button(btns, text="≣ 多版本 · 探索路径", command=self.on_takes).pack(fill="x", pady=2)
         ttk.Button(btns, text="→ 下一章场景建议", command=self.on_plan).pack(fill="x", pady=2)
         ttk.Button(btns, text="状态 / 历史", command=self.on_status).pack(fill="x", pady=2)
@@ -296,6 +299,37 @@ class App:
         self._set_tab("评价", self._eval_text(eva))
         self._set_tab("建议", self._advice_text(advice) + "\n\n" + self._plan_text(skeletons))
         self.nb.select(0)
+
+    def on_book(self) -> None:
+        if self.session is None:
+            return
+        lines = [ln.strip() for ln in self.scene_text.get("1.0", "end").splitlines()]
+        scenes = [ln for ln in lines if ln and not ln.startswith("#")]
+        if not scenes:
+            messagebox.showwarning("缺少场景", "请在场景框里每行写一章的场景。")
+            return
+        pov = self.pov_var.get() or None
+
+        def work():
+            return self.session.compose_book(
+                scenes, pov=pov, style=self.style_var.get(),
+                jazz_mode=self.mode_var.get(), seed=self._seed(),
+                overrides=self._overrides(), save=self.save_var.get(),
+            )
+
+        self._async(work, self._render_book)
+
+    def _render_book(self, results) -> None:
+        body, cues, evals = [], [], []
+        for i, take, eva in results:
+            body.append(f"──────── 第 {i} 章 · {take.style} ────────\n{take.text}\n")
+            cues.append(f"【第 {i} 章】\n{self._cue_text(take)}")
+            evals.append(f"【第 {i} 章】\n{self._eval_text(eva)}")
+        self._set_tab("正文", "\n".join(body))
+        self._set_tab("即兴决策", "\n\n".join(cues))
+        self._set_tab("评价", "\n\n".join(evals))
+        self.nb.select(0)
+        self.status_var.set(f"已生成 {len(results)} 章")
 
     def on_takes(self) -> None:
         if self.session is None:

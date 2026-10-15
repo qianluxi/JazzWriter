@@ -350,6 +350,55 @@ def cmd_takes(args) -> int:
     return 0
 
 
+def _read_scenes(args) -> List[str]:
+    if getattr(args, "file", None):
+        text = Path(args.file).read_text(encoding="utf-8")
+    else:
+        text = "\n".join(args.scenes or [])
+    lines = [ln.strip() for ln in text.splitlines()]
+    return [ln for ln in lines if ln and not ln.startswith("#")]
+
+
+def cmd_book(args) -> int:
+    session = _build_session(args)
+    scenes = _read_scenes(args)
+    if not scenes:
+        console.print("[red]缺少场景。每章一行，或使用 --file 指定文件。[/red]")
+        return 2
+    if args.chapters:
+        scenes = scenes[:args.chapters]
+
+    console.print(f"[dim]拟演奏 {len(scenes)} 章 …[/dim]")
+    results = session.compose_book(
+        scenes,
+        pov=args.pov,
+        style=args.style,
+        styles=args.style_cycle or None,
+        jazz_mode=args.mode,
+        seed=args.seed,
+        overrides=_jazz_overrides(args),
+        save=not args.no_save,
+        update_state=args.update_state,
+    )
+
+    summary = Table(title="全书概览 · Book", header_style="bold")
+    for col in ("章", "场景", "风格", "种子", "总分", "评级"):
+        summary.add_column(col)
+    for i, take, evaluation in results:
+        title = f"第 {i} 章 · {take.mode} · {take.style} · POV {take.pov}"
+        console.print(Panel(take.text, title=title, border_style="cyan", padding=(1, 2)))
+        _show_cue(take)
+        _show_evaluation(evaluation)
+        seed_shown = take.cue.get("seed_int") if take.cue else ""
+        summary.add_row(str(i), take.scene[:24], take.style, str(seed_shown),
+                        f"{evaluation.overall:.0%}", evaluation.grade)
+    console.print(summary)
+    if not args.no_save:
+        console.print("[green]章节已保存到 output/chapters/[/green]")
+    console.print("[dim]提示：用 `python main.py history` 查看趋势，`python main.py advice` 看参数建议。[/dim]")
+    return 0
+
+
 def cmd_evaluate(args) -> int:
     session = _build_session(args)
     path = Path(args.file)
@@ -589,6 +638,20 @@ def build_parser() -> argparse.ArgumentParser:
     t.add_argument("--no-save", action="store_true")
     _add_jazz_options(t)
     t.set_defaults(func=cmd_takes)
+
+    bk = sub.add_parser("book", help="顺序生成全书（每个场景一章，自动衔接）")
+    bk.add_argument("scenes", nargs="*", help="每章场景（可多行）；也可用 --file")
+    bk.add_argument("--file", default=None, help="从文本文件读取，每行一章（# 开头为注释）")
+    bk.add_argument("--pov", default=None)
+    bk.add_argument("--style", default="现实主义")
+    bk.add_argument("--style-cycle", dest="style_cycle", nargs="*", default=None,
+                    help="按章轮流使用的 Solo 色彩")
+    bk.add_argument("--chapters", type=int, default=None, help="限制生成章数")
+    bk.add_argument("--update-state", dest="update_state", action="store_true",
+                    help="把本次进度写回 data/story_state.yaml")
+    bk.add_argument("--no-save", action="store_true")
+    _add_jazz_options(bk)
+    bk.set_defaults(func=cmd_book)
 
     h = sub.add_parser("history", help="查看演奏历史与趋势")
     h.add_argument("--chapter", type=int, default=None)

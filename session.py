@@ -33,6 +33,8 @@ from store import (
     save_jazz_state,
     save_motifs,
     save_run,
+    save_story_state,
+    save_take,
     append_advice,
     load_runs,
 )
@@ -235,6 +237,71 @@ class Session:
                 self._record_run(take, evaluation, shared_cue, scene, pov=pov)
             results.append((take, evaluation))
         return results
+
+    def compose_book(
+        self,
+        scenes: List[str],
+        *,
+        pov: Optional[str] = None,
+        style: str = "现实主义",
+        styles: Optional[List[str]] = None,
+        jazz_mode: Optional[str] = None,
+        seed: Optional[int] = None,
+        overrides: Optional[Dict[str, float]] = None,
+        save: bool = True,
+        update_state: bool = False,
+    ) -> List[Tuple[int, Take, Evaluation]]:
+        """Play the whole book, one scene per chapter, chaining continuity.
+
+        Each chapter receives the previous chapter's tail as ``previous_summary``
+        (and recent texts for novelty), so the band remembers what it just played.
+        With a fixed ``seed`` chapter *i* uses ``seed + i - 1`` so the run is
+        reproducible yet each chapter still varies.
+        """
+        scenes = [s.strip() for s in scenes if s and s.strip()]
+        total = len(scenes)
+        results: List[Tuple[int, Take, Evaluation]] = []
+        prev_summary = ""
+        prev_texts: List[str] = []
+
+        for i, scene in enumerate(scenes, start=1):
+            chapter_style = styles[(i - 1) % len(styles)] if styles else style
+            chapter_seed = (seed + i - 1) if seed is not None else None
+            take, eva = self.play(
+                scene,
+                pov=pov,
+                style=chapter_style,
+                chapter=i,
+                total_chapters=total,
+                previous_summary=prev_summary,
+                jazz_mode=jazz_mode,
+                seed=chapter_seed,
+                overrides=overrides,
+                previous_texts=prev_texts,
+                record=True,
+            )
+            if save:
+                save_take(take, eva, index=i)
+                self.record_motifs(take)
+            prev_summary = self._summary_of(take.text)
+            prev_texts = (prev_texts + [take.text])[-5:]
+            results.append((i, take, eva))
+
+        if save:
+            self.persist_motifs()
+        if update_state:
+            self.story_state.chapter = total
+            for i, take, _eva in results:
+                self.story_state.record_event(i, take.scene[:60])
+            save_story_state(self.story_state)
+        return results
+
+    @staticmethod
+    def _summary_of(text: str, limit: int = 240) -> str:
+        text = text.strip()
+        if len(text) <= limit:
+            return text
+        return "……" + text[-limit:]
 
     # -- run records --------------------------------------------------------
     def _record_run(self, take: Take, evaluation: Evaluation, cue: Cue,

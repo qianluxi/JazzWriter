@@ -36,7 +36,10 @@ python gui.py
 
 或直接双击根目录的 **`JazzWriter.bat`**。界面左侧填场景、选模式/人物/风格、调即兴参数，
 点「▶ 演奏一章」；右侧标签页分别显示 **正文 / 即兴决策(Cue) / 评价 / 建议 / 状态 / 历史**。
-另有「多版本 · 探索路径」和「下一章场景建议」。仅用标准库 Tkinter，无需额外安装。
+另有「多版本 · 探索路径」「下一章场景建议」。仅用标准库 Tkinter，无需额外安装。
+
+**生成整本小说**：在场景框里**每行写一章的场景**，点「⇒ 生成全书（每行一章）」，
+它会按顺序生成、自动把上一章结尾衔接到下一章（`#` 开头的行视为注释）。
 
 ## 使用
 
@@ -58,6 +61,11 @@ python main.py takes "同上" --mode bebop --styles 冷静观察 象征增强 �
 
 # 模式B：同一主题多次独立即兴（各 Take 走不同叙事路径）
 python main.py takes "同上" --mode bebop --seed 7 --explore --styles 象征增强 心理深入
+
+# 顺序生成「全书」：每个场景/每行一章，自动衔接上文并推进动机
+python main.py book "第1章场景" "第2章场景" "第3章场景" --pov 林 --mode bebop --seed 100
+python main.py book --file outline.txt --chapters 3 --style-cycle 冷峻 抒情 象征增强
+python main.py book "..." --update-state      # 顺便把进度写回 data/story_state.yaml
 
 # 生成后给出下一章场景骨架（交互式选择，不自动续写）
 python main.py play "..." --suggest
