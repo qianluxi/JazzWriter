@@ -27,12 +27,21 @@ from improvisation.surprise_engine import Surprise, SurpriseEngine
 @dataclass
 class JazzParams:
     mode: str = "classic_jazz"
+    # -- text-level (原有) --
     creativity: float = 0.5        # 创造程度
     randomness: float = 0.4        # 随机扰动
     motif_reuse: float = 0.8       # 主题重复
     character_freedom: float = 0.6  # 人物自主性
     surprise_level: float = 0.5    # 剧情转折
-    style_distance: float = 0.3    # 语言变化
+    style_distance: float = 0.3    # 语言变化（高级选项）
+    # -- structure-level (V2.0) --
+    idea_divergence: float = 0.4       # 一个前提能发散多远的不同故事方向
+    causal_variation: float = 0.35     # 探索不同因果机制的程度
+    character_agency: float = 0.6      # 人物自主行动偏离预设剧情的程度
+    motif_transformation: float = 0.6  # 核心意象的意义变化
+    revelation_delay: float = 0.5      # 延迟解释/揭露/确认的程度
+    branch_count: int = 3              # 每轮给出多少实质不同的创意候选
+    continuity_strength: float = 0.8   # 对已确定事实与既有情节的约束强度
     seed: Optional[int] = None
 
     def to_dict(self) -> Dict[str, Any]:
@@ -44,6 +53,13 @@ class JazzParams:
             "character_freedom": self.character_freedom,
             "surprise_level": self.surprise_level,
             "style_distance": self.style_distance,
+            "idea_divergence": self.idea_divergence,
+            "causal_variation": self.causal_variation,
+            "character_agency": self.character_agency,
+            "motif_transformation": self.motif_transformation,
+            "revelation_delay": self.revelation_delay,
+            "branch_count": self.branch_count,
+            "continuity_strength": self.continuity_strength,
             "seed": self.seed,
         }
 
@@ -60,14 +76,26 @@ class JazzParams:
 
 MODE_PRESETS: Dict[str, Dict[str, float]] = {
     # 主题 ~90% / 创新 ~10%
-    "classic_jazz": dict(creativity=0.25, randomness=0.15, motif_reuse=0.9,
-                         character_freedom=0.35, surprise_level=0.15, style_distance=0.15),
+    "classic_jazz": dict(
+        creativity=0.25, randomness=0.15, motif_reuse=0.9, character_freedom=0.35,
+        surprise_level=0.15, style_distance=0.15,
+        idea_divergence=0.25, causal_variation=0.2, character_agency=0.35,
+        motif_transformation=0.55, revelation_delay=0.4, branch_count=3,
+        continuity_strength=0.9),
     # 主题 ~70% / 创新 ~30%
-    "bebop": dict(creativity=0.6, randomness=0.45, motif_reuse=0.75,
-                  character_freedom=0.6, surprise_level=0.5, style_distance=0.45),
+    "bebop": dict(
+        creativity=0.6, randomness=0.45, motif_reuse=0.75, character_freedom=0.6,
+        surprise_level=0.5, style_distance=0.45,
+        idea_divergence=0.55, causal_variation=0.45, character_agency=0.6,
+        motif_transformation=0.65, revelation_delay=0.55, branch_count=3,
+        continuity_strength=0.7),
     # 主题 ~50% / 创新 ~50%
-    "free_jazz": dict(creativity=0.85, randomness=0.7, motif_reuse=0.5,
-                      character_freedom=0.85, surprise_level=0.7, style_distance=0.8),
+    "free_jazz": dict(
+        creativity=0.85, randomness=0.7, motif_reuse=0.5, character_freedom=0.85,
+        surprise_level=0.7, style_distance=0.8,
+        idea_divergence=0.85, causal_variation=0.75, character_agency=0.85,
+        motif_transformation=0.85, revelation_delay=0.7, branch_count=4,
+        continuity_strength=0.5),
 }
 MODE_ALIASES = {
     "classic": "classic_jazz",

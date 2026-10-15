@@ -8,6 +8,8 @@ output/chapters/*
 output/runs/*
 !output/runs/.gitkeep
 output/advice_history.jsonl
+output/book_plan.json
+output/book_outline.md
 data/jazz_state.yaml
 data/motif_state.yaml
 .pytest_cache/

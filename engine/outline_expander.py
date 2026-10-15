@@ -1,0 +1,162 @@
+"""Outline expander — grow a BookPlan into volumes and chapter cards.
+
+Progressive structure, not a single megaprompt. Structure templates let the
+story serve the novel rather than the novel serving a fixed three-act mould.
+Deterministic and reproducible given a seed; the LLM path (in BookPlanner)
+can replace it, but this is always the safe fallback.
+"""
+
+from __future__ import annotations
+
+import random
+from typing import Dict, List, Optional
+
+from core.book_plan import BookPlan
+from core.chapter_plan import ChapterPlan
+from core.theme import Theme
+from core.volume_plan import VolumePlan
+
+TEMPLATES: Dict[str, List[str]] = {
+    "linear_causality": ["建立", "推进", "升级", "中点转折", "低谷", "高潮", "收束"],
+    "mystery": ["设谜", "调查", "误导", "发现", "反转", "解释", "收束"],
+    "multi_pov": ["A线", "B线", "交织", "对撞", "汇合", "代价", "收束"],
+    "ensemble": ["群像·起", "群像·散", "聚焦", "交叉", "汇聚", "代价", "收束"],
+    "nonlinear_puzzle": ["碎片", "倒叙", "拼接", "缺口", "指认", "重组", "回应"],
+    "custom": ["起", "承", "转", "合"],
+}
+TEMPLATE_LABELS = {
+    "linear_causality": "线性因果",
+    "mystery": "悬疑调查",
+    "multi_pov": "多视角",
+    "ensemble": "群像",
+    "nonlinear_puzzle": "非线性拼图",
+    "custom": "自定义",
+}
+
+
+def _sequence(template: str, n: int) -> List[str]:
+    seq = TEMPLATES.get(template, TEMPLATES["linear_causality"])
+    if n <= 1:
+        return [seq[0]]
+    return [seq[round(i * (len(seq) - 1) / (n - 1))] for i in range(n)]
+
+
+class OutlineExpander:
+    def __init__(self, theme: Theme, cast: List[str]) -> None:
+        self.theme = theme
+        self.cast = cast or ["主角"]
+
+    def expand(
+        self,
+        book: BookPlan,
+        chapter_count: int,
+        *,
+        template: Optional[str] = None,
+        seed: Optional[int] = None,
+    ) -> BookPlan:
+        chapter_count = max(1, int(chapter_count))
+        template = template or book.structure_template or "linear_causality"
+        book.structure_template = template
+        rng = random.Random(seed if seed is not None else 0)
+
+        functions = _sequence(template, chapter_count)
+        motifs = (self.theme.motifs or self.theme.symbols) or ["意象"]
+        turns = book.key_turns or [f"阶段{i+1}" for i in range(1)]
+
+        # thread schedule: introduce in the first half, reveal per revelation_delay
+        delay = float(book.params.get("revelation_delay", 0.5))
+        threads: List[str] = [t[:16] for t in turns]
+        schedule: Dict[str, Dict[str, int]] = {}
+        for j, thread in enumerate(threads):
+            intro = min(chapter_count - 1, int(j * (chapter_count * 0.5) / max(1, len(threads))))
+            span = max(1, int((chapter_count - intro) * (0.5 + 0.4 * delay)))
+            reveal = min(chapter_count - 1, intro + span)
+            schedule[thread] = {"intro": intro, "reveal": reveal}
+
+        chapters: List[ChapterPlan] = []
+        prev_hook = f"{book.premise}（故事由此启动）" if book.premise else "故事由此启动。"
+        for i in range(chapter_count):
+            fn = functions[i]
+            turn = turns[i % len(turns)]
+            pov = self.cast[i % len(self.cast)]
+            active_threads = [t for t, s in schedule.items() if s["intro"] == i]
+            reveal_threads = [t for t, s in schedule.items() if s["reveal"] == i and s["intro"] != i]
+            ch_motifs = [motifs[i % len(motifs)], motifs[(i + 1) % len(motifs)]]
+            ch_motifs = list(dict.fromkeys(ch_motifs))  # dedupe, keep order
+
+            conflict = self._conflict(fn, turn, pov, book)
+            outcome = self._outcome(fn, turn)
+            hook_to = self._hook(fn, turn, i, chapter_count)
+
+            chapters.append(ChapterPlan(
+                number=i + 1,
+                title=f"{fn}·{turn[:12]}" if turn else fn,
+                function=fn,
+                pov=pov,
+                premise=prev_hook,
+                key_action=self._action(fn, pov, turn),
+                conflict=conflict,
+                outcome=outcome,
+                stakes=self._stakes(book),
+                info_change=self._info(fn, reveal_threads),
+                character_change=self._char_change(fn, pov),
+                threads=active_threads + reveal_threads,
+                motifs=ch_motifs,
+                hook_from=prev_hook,
+                hook_to=hook_to,
+                summary=f"{pov}面临「{turn[:14]}」：{conflict}；{outcome}",
+            ))
+            prev_hook = hook_to
+
+        book.volumes = self._group_volumes(book, chapters, template)
+        return book
+
+    # -- field synthesis ----------------------------------------------------
+    def _conflict(self, fn: str, turn: str, pov: str, book: BookPlan) -> str:
+        return f"{pov}的欲望与既有局面在「{turn[:14]}」上发生碰撞（{fn}）"
+
+    def _outcome(self, fn: str, turn: str) -> str:
+        return f"事件推进：{turn[:16]}，处境发生变化，但代价随之而来"
+
+    def _action(self, fn: str, pov: str, turn: str) -> str:
+        return f"{pov}围绕「{turn[:14]}」采取行动"
+
+    def _stakes(self, book: BookPlan) -> str:
+        return book.main_conflict or "人物关系的存续"
+
+    def _info(self, fn: str, reveals: List[str]) -> str:
+        if reveals:
+            return "揭示：" + "、".join(reveals)
+        return "信息被保留、延迟或误导"
+
+    def _char_change(self, fn: str, pov: str) -> str:
+        return f"{pov}对核心命题的判断出现shift（{fn}）"
+
+    def _hook(self, fn: str, turn: str, i: int, n: int) -> str:
+        if i >= n - 1:
+            return "回扣开篇提出的问题，给出回应。"
+        return f"由「{turn[:14]}」引出一个新的问题，留给下一章。"
+
+    def _group_volumes(self, book: BookPlan, chapters: List[ChapterPlan], template: str) -> List[VolumePlan]:
+        n = len(chapters)
+        vcount = 1 if n <= 4 else 2 if n <= 9 else 3
+        size = (n + vcount - 1) // vcount
+        volumes: List[VolumePlan] = []
+        for v in range(vcount):
+            chunk = chapters[v * size:(v + 1) * size]
+            if not chunk:
+                continue
+            first, last = chunk[0], chunk[-1]
+            turns = list(dict.fromkeys([c.title for c in chunk if "转折" in c.function or "高潮" in c.function])) or [last.title]
+            volumes.append(VolumePlan(
+                number=v + 1,
+                title=f"第{v+1}卷·{first.function}→{last.function}",
+                goal=f"完成从「{first.function}」到「{last.function}」的阶段目标",
+                opening_state=first.premise,
+                key_turns=turns,
+                climax=last.summary,
+                outcome=f"第{v+1}卷结束时：{last.outcome}",
+                sets_up_next=last.hook_to,
+                chapters=chunk,
+            ))
+        return volumes

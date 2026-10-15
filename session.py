@@ -8,15 +8,22 @@ import hashlib
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from core.book_plan import BookPlan
 from core.character import Character
+from core.chapter_plan import ChapterPlan
 from core.harmony import Harmony
 from core.improviser import HarmonyContext, Improviser, canonical_mode
 from core.motif import MotifLibrary
+from core.story_idea import StoryIdea
 from core.story_state import StoryState
 from core.theme import Theme
+from engine.book_planner import BookPlanner
 from engine.composer import Composer, Take
 from engine.evaluator import Evaluation, Evaluator
+from engine.outline_expander import OutlineExpander, TEMPLATE_LABELS
+from engine.plot_validator import PlotValidator
 from engine.scene_planner import ScenePlanner, SceneSkeleton
+from engine.structure_evaluator import StructureEvaluator, StructureReport
 from engine.variation import Variation
 from feedback.conductor import Advice, Conductor
 from improvisation.improvisation_score import Cue, ImprovisationScore, JazzParams, params_for_mode
@@ -30,6 +37,9 @@ from store import (
     load_motifs,
     load_story,
     load_story_state,
+    save_book_plan,
+    load_book_plan,
+    export_book_outline,
     save_jazz_state,
     save_motifs,
     save_run,
@@ -53,6 +63,7 @@ class Session:
         story_state: Optional[StoryState] = None,
         eval_mode: str = "lexical",
         motif_state_path: Optional[Path] = None,
+        book: Optional[BookPlan] = None,
     ) -> None:
         self.theme = theme
         self.harmony = harmony
@@ -64,6 +75,7 @@ class Session:
         self.story_state = story_state or StoryState()
         self.eval_mode = eval_mode
         self.motif_state_path = motif_state_path
+        self.book: Optional[BookPlan] = book
 
     # -- construction -------------------------------------------------------
     @classmethod
@@ -84,7 +96,7 @@ class Session:
         runtime = load_jazz_state(base / "jazz_state.yaml")
         jazz = JazzParams.from_dict(runtime) if runtime else JazzParams.from_dict(load_jazz(base / "story.yaml"))
         resolved = get_provider(provider, **provider_kwargs)
-        return cls(
+        session = cls(
             theme, harmony, characters, motifs,
             provider=resolved,
             provider_name=getattr(resolved, "name", provider or "mock"),
@@ -93,6 +105,8 @@ class Session:
             eval_mode=eval_mode,
             motif_state_path=base / "motif_state.yaml",
         )
+        session.book = load_book_plan()
+        return session
 
     def character(self, name: Optional[str] = None) -> Character:
         if not self.characters:
@@ -319,6 +333,122 @@ class Session:
         if len(text) <= limit:
             return text
         return "……" + text[-limit:]
+
+    # -- structure planning (V2.0) -----------------------------------------
+    def _char_list(self) -> List[Character]:
+        return list(self.characters.values())
+
+    def _planner(self, *, seed=None, use_llm=True) -> BookPlanner:
+        params = self.effective_params(seed=seed)
+        llm = None
+        if use_llm and getattr(self.provider, "name", "mock") not in ("mock", ""):
+            llm = self.provider
+        return BookPlanner(self.theme, self._char_list(), params, llm=llm)
+
+    def story_ideas(self, premise: str, *, count=None, seed=None, use_llm=True) -> List[StoryIdea]:
+        return self._planner(seed=seed, use_llm=use_llm).ideas(premise, count=count, seed=seed)
+
+    def build_book(self, premise: str, ideas: List[StoryIdea], *, pick: int = 0,
+                   chapters: int = 12, template=None, seed=None, use_llm=True) -> BookPlan:
+        if not ideas:
+            raise ValueError("没有可选的故事方案")
+        idea = ideas[pick]
+        book = self._planner(seed=seed, use_llm=use_llm).build(
+            premise, idea, chapters=chapters, template=template, seed=seed)
+        self.book = book
+        save_book_plan(book)
+        return book
+
+    def expand_book(self, *, chapters=None, template=None, seed=None) -> BookPlan:
+        book = self._require_book()
+        n = chapters or len(book.chapters()) or 12
+        OutlineExpander(self.theme, book.cast).expand(
+            book, n, template=template or book.structure_template,
+            seed=seed if seed is not None else (self.effective_params().seed or 0))
+        save_book_plan(book)
+        return book
+
+    def validate_book(self, book: Optional[BookPlan] = None) -> StructureReport:
+        target = book or self.book
+        if target is None:
+            raise ValueError("尚无 BookPlan")
+        return StructureEvaluator().evaluate(target)
+
+    def lock_chapter(self, number: int) -> BookPlan:
+        self._require_book().lock(number)
+        save_book_plan(self.book)
+        return self.book
+
+    def unlock_chapter(self, number: int) -> BookPlan:
+        self._require_book().unlock(number)
+        save_book_plan(self.book)
+        return self.book
+
+    def reimprovise_chapter(self, number: int, *, seed=None) -> Tuple[BookPlan, List[int]]:
+        """Re-improvisation never silently overwrites locked chapters."""
+        book = self._require_book()
+        affected = book.affected_downstream(number)
+        locked = {c.number: c.to_dict() for c in book.chapters() if c.locked}
+        OutlineExpander(self.theme, book.cast).expand(
+            book, len(book.chapters()) or 12, template=book.structure_template,
+            seed=seed if seed is not None else (self.effective_params().seed or 0))
+        for c in book.chapters():
+            if c.number in locked:
+                saved = ChapterPlan.from_dict(locked[c.number])
+                for field_name, value in saved.to_dict().items():
+                    setattr(c, field_name, value)
+        save_book_plan(book)
+        return book, affected
+
+    def export_outline(self, path=None) -> Path:
+        return export_book_outline(self._require_book(), path)
+
+    def _require_book(self) -> BookPlan:
+        if self.book is None:
+            raise ValueError("尚无 BookPlan，请先 `outline --build` 或加载 output/book_plan.json")
+        return self.book
+
+    def render_book_from_plan(self, *, pov=None, style: str = "现实主义",
+                              jazz_mode=None, seed=None, overrides=None,
+                              save: bool = True) -> List[Tuple[int, Take, Evaluation]]:
+        """Generate prose from a saved structure (uses each chapter's summary as
+        the scene). Never cycles a single scene across chapters."""
+        book = self._require_book()
+        chapters = book.chapters()
+        results: List[Tuple[int, Take, Evaluation]] = []
+        prev = ""
+        prev_texts: List[str] = []
+        for ch in chapters:
+            scene = self._chapter_scene(ch)
+            take, eva = self.play(
+                scene, pov=pov or ch.pov or None, style=style, chapter=ch.number,
+                total_chapters=len(chapters), previous_summary=prev,
+                jazz_mode=jazz_mode,
+                seed=(seed + ch.number - 1) if seed is not None else None,
+                overrides=overrides, previous_texts=prev_texts, record=True)
+            if save:
+                save_take(take, eva, index=ch.number)
+                self.record_motifs(take)
+            prev = self._summary_of(take.text)
+            prev_texts = (prev_texts + [take.text])[-5:]
+            results.append((ch.number, take, eva))
+        if save:
+            self.persist_motifs()
+        return results
+
+    @staticmethod
+    def _chapter_scene(ch: ChapterPlan) -> str:
+        head = ch.summary or ch.title or f"第{ch.number}章"
+        extra = []
+        if ch.function:
+            extra.append(f"功能：{ch.function}")
+        if ch.conflict:
+            extra.append(f"冲突：{ch.conflict}")
+        if ch.outcome:
+            extra.append(f"结果：{ch.outcome}")
+        if ch.motifs:
+            extra.append("意象：" + "、".join(ch.motifs))
+        return head + ("（" + "；".join(extra) + "）" if extra else "")
 
     # -- run records --------------------------------------------------------
     def _record_run(self, take: Take, evaluation: Evaluation, cue: Cue,

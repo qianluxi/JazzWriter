@@ -14,6 +14,7 @@ from rich.table import Table
 from core.improviser import MODES, STYLES
 from engine.composer import Take
 from engine.evaluator import Evaluation
+from engine.outline_expander import TEMPLATE_LABELS
 from engine.semantic_similarity import MODES as EVAL_MODES
 from improvisation.improvisation_score import MODE_PRESETS
 from session import Session
@@ -184,11 +185,14 @@ def _show_evaluation(evaluation: Evaluation) -> None:
 
 _JAZZ_KEYS = ["creativity", "randomness", "motif_reuse",
               "character_freedom", "surprise_level", "style_distance"]
+_STRUCT_KEYS = ["idea_divergence", "causal_variation", "character_agency",
+                "motif_transformation", "revelation_delay", "branch_count",
+                "continuity_strength"]
 
 
 def _jazz_overrides(args) -> dict:
     out = {}
-    for key in _JAZZ_KEYS:
+    for key in _JAZZ_KEYS + _STRUCT_KEYS:
         value = getattr(args, key, None)
         if value is not None:
             out[key] = value
@@ -361,25 +365,31 @@ def _read_scenes(args) -> List[str]:
 
 def cmd_book(args) -> int:
     session = _build_session(args)
-    scenes = _read_scenes(args)
-    if not scenes:
-        console.print("[red]缺少场景。每章一行，或使用 --file 指定文件。[/red]")
-        return 2
-
-    expected = args.chapters or len(scenes)
-    console.print(f"[dim]拟演奏 {expected} 章 …[/dim]")
-    results = session.compose_book(
-        scenes,
-        pov=args.pov,
-        style=args.style,
-        styles=args.style_cycle or None,
-        jazz_mode=args.mode,
-        seed=args.seed,
-        overrides=_jazz_overrides(args),
-        target_chapters=args.chapters,
-        save=not args.no_save,
-        update_state=args.update_state,
-    )
+    if getattr(args, "from_plan", False):
+        try:
+            results = session.render_book_from_plan(
+                pov=args.pov, style=args.style, jazz_mode=args.mode,
+                seed=args.seed, overrides=_jazz_overrides(args), save=not args.no_save)
+        except ValueError as exc:
+            console.print(f"[red]{exc}[/red]")
+            return 2
+        console.print("[dim]由 output/book_plan.json 的结构渲染正文 …[/dim]")
+    else:
+        scenes = _read_scenes(args)
+        if not scenes:
+            console.print("[red]缺少场景。每章一行，或使用 --file 指定文件。[/red]")
+            return 2
+        if args.chapters and len(scenes) < args.chapters:
+            console.print(f"[red]只提供了 {len(scenes)} 个场景，却请求 {args.chapters} 章。[/red]")
+            console.print("[yellow]已停止：V2.0 不再循环复用同一场景。[/yellow]")
+            console.print("[dim]请补充每章场景，或先 `python main.py outline --build` 生成结构，"
+                          "再用 `python main.py book --from-plan` 渲染。[/dim]")
+            return 2
+        console.print(f"[dim]拟演奏 {len(scenes)} 章 …[/dim]")
+        results = session.compose_book(
+            scenes, pov=args.pov, style=args.style, styles=args.style_cycle or None,
+            jazz_mode=args.mode, seed=args.seed, overrides=_jazz_overrides(args),
+            save=not args.no_save, update_state=args.update_state)
 
     summary = Table(title="全书概览 · Book", header_style="bold")
     for col in ("章", "场景", "风格", "种子", "总分", "评级"):
@@ -396,6 +406,124 @@ def cmd_book(args) -> int:
     if not args.no_save:
         console.print("[green]章节已保存到 output/chapters/[/green]")
     console.print("[dim]提示：用 `python main.py history` 查看趋势，`python main.py advice` 看参数建议。[/dim]")
+    return 0
+
+
+def _read_premise(args) -> str:
+    if getattr(args, "premise", None):
+        return " ".join(args.premise).strip()
+    if getattr(args, "file", None):
+        return Path(args.file).read_text(encoding="utf-8").strip()
+    if not sys.stdin.isatty():
+        return sys.stdin.read().strip()
+    return ""
+
+
+def _print_ideas(ideas) -> None:
+    table = Table(title="故事方案 · Story Hypotheses", header_style="bold")
+    for col in ("#", "标签", "因果机制", "真相", "关系", "结局", "差异度"):
+        table.add_column(col)
+    for i, idea in enumerate(ideas, 1):
+        table.add_row(str(i), idea.label, idea.causal_mechanism, idea.truth_nature,
+                      idea.character_relation, idea.ending_direction, f"{idea.distinctness:.0%}")
+    console.print(table)
+    for i, idea in enumerate(ideas, 1):
+        console.print(f"  [dim]{i}. {idea.rationale}[/dim]")
+
+
+def _print_chapter_map(book) -> None:
+    table = Table(title=f"全书结构 · {book.title}（{book.structure_template}）", header_style="bold")
+    for col in ("章", "功能", "POV", "冲突", "结果", "线索", "状态"):
+        table.add_column(col)
+    for ch in book.chapters():
+        mark = "🔒锁定" if ch.locked else ch.status
+        table.add_row(str(ch.number), ch.function, ch.pov,
+                      ch.conflict[:20], ch.outcome[:20],
+                      "、".join(ch.threads)[:16], mark)
+    console.print(table)
+
+
+def _print_structure(report) -> None:
+    table = Table(title="结构评价 · Structure", header_style="bold")
+    table.add_column("维度")
+    table.add_column("分数", justify="right")
+    labels = {
+        "idea_uniqueness": "创意独特性", "completeness": "故事完整性",
+        "causal_continuity": "因果连续性", "character_change": "人物变化",
+        "chapter_contribution": "章节贡献", "foreshadowing": "伏笔与回收",
+    }
+    for k, v in report.dimensions.items():
+        table.add_row(labels.get(k, k), f"{v:.0%}")
+    table.add_row("综合", f"[bold]{report.overall:.0%}[/bold]")
+    console.print(table)
+    if report.issues:
+        console.print("[yellow]具体问题：[/yellow]")
+        for issue in report.issues[:12]:
+            console.print(f"  · {issue}")
+    for note in report.notes:
+        console.print(f"  [dim]{note}[/dim]")
+
+
+def cmd_outline(args) -> int:
+    session = _build_session(args)
+
+    if args.lock is not None:
+        session.lock_chapter(args.lock)
+        console.print(f"[green]已锁定第 {args.lock} 章[/green]")
+        _print_chapter_map(session.book)
+        return 0
+    if args.unlock is not None:
+        session.unlock_chapter(args.unlock)
+        console.print(f"[green]已解锁第 {args.unlock} 章[/green]")
+        return 0
+    if args.reimprovise is not None:
+        try:
+            book, affected = session.reimprovise_chapter(args.reimprovise, seed=args.seed)
+        except ValueError as exc:
+            console.print(f"[red]{exc}[/red]")
+            return 2
+        console.print(f"[green]已重新即兴第 {args.reimprovise} 章[/green]"
+                      f"（锁定章节保持不变；可能受影响：{affected}）")
+        _print_chapter_map(book)
+        return 0
+    if args.export:
+        try:
+            path = session.export_outline()
+        except ValueError as exc:
+            console.print(f"[red]{exc}[/red]")
+            return 2
+        console.print(f"[green]已导出结构[/green] → {path}")
+        return 0
+    if args.validate:
+        try:
+            report = session.validate_book()
+        except ValueError as exc:
+            console.print(f"[red]{exc}[/red]")
+            return 2
+        _print_structure(report)
+        return 0
+
+    premise = _read_premise(args)
+    if not premise:
+        console.print("[red]缺少故事前提。用参数、--file 或管道提供。[/red]")
+        return 2
+
+    ideas = session.story_ideas(premise, count=args.branches, seed=args.seed)
+    _print_ideas(ideas)
+
+    if args.build or args.pick is not None:
+        pick = (args.pick - 1) if args.pick else 0
+        if pick < 0 or pick >= len(ideas):
+            console.print(f"[red]--pick 超出范围（共 {len(ideas)} 个方案）[/red]")
+            return 2
+        console.print(f"[dim]采纳方案 {pick + 1}，展开为 {args.chapters} 章 …[/dim]")
+        book = session.build_book(premise, ideas, pick=pick, chapters=args.chapters,
+                                  template=args.template, seed=args.seed)
+        _print_chapter_map(book)
+        report = session.validate_book(book)
+        _print_structure(report)
+        console.print("[dim]下一步：`outline --lock N` 锁定认可章节；`outline --reimprovise N` "
+                      "重新即兴；`outline --export` 导出；`book --from-plan` 渲染正文。[/dim]")
     return 0
 
 
@@ -598,11 +726,24 @@ def _add_jazz_options(p: argparse.ArgumentParser) -> None:
     p.add_argument("--style-distance", dest="style_distance", type=float, default=None)
 
 
+def _add_structure_options(p: argparse.ArgumentParser) -> None:
+    p.add_argument("--idea-divergence", dest="idea_divergence", type=float, default=None)
+    p.add_argument("--causal-variation", dest="causal_variation", type=float, default=None)
+    p.add_argument("--character-agency", dest="character_agency", type=float, default=None)
+    p.add_argument("--motif-transformation", dest="motif_transformation", type=float, default=None)
+    p.add_argument("--revelation-delay", dest="revelation_delay", type=float, default=None)
+    p.add_argument("--branch-count", dest="branch_count", type=int, default=None)
+    p.add_argument("--continuity-strength", dest="continuity_strength", type=float, default=None)
+
+
 def build_parser() -> argparse.ArgumentParser:
+    from version import __version__
+
     parser = argparse.ArgumentParser(
         prog="jazzwriter",
-        description="Novel Jazz Engine — 像爵士乐手一样即兴写小说。",
+        description="Novel Jazz Engine — 长篇小说结构即兴引擎。",
     )
+    parser.add_argument("--version", action="version", version=f"JazzWriter {__version__}")
     parser.add_argument("--provider", default=None,
                         help="mock | opencode | openai (默认 NJE_PROVIDER 或 mock)")
     parser.add_argument("--data", default=None, help="数据目录 (默认 ./data)")
@@ -647,12 +788,33 @@ def build_parser() -> argparse.ArgumentParser:
     bk.add_argument("--style", default="现实主义")
     bk.add_argument("--style-cycle", dest="style_cycle", nargs="*", default=None,
                     help="按章轮流使用的 Solo 色彩")
-    bk.add_argument("--chapters", type=int, default=None, help="限制生成章数")
+    bk.add_argument("--chapters", type=int, default=None, help="期望章数（不足将报错，不再循环复用）")
+    bk.add_argument("--from-plan", dest="from_plan", action="store_true",
+                    help="用 output/book_plan.json 的章节结构渲染正文")
     bk.add_argument("--update-state", dest="update_state", action="store_true",
                     help="把本次进度写回 data/story_state.yaml")
     bk.add_argument("--no-save", action="store_true")
     _add_jazz_options(bk)
+    _add_structure_options(bk)
     bk.set_defaults(func=cmd_book)
+
+    ol = sub.add_parser("outline", help="故事结构即兴：发散方案→采纳→展开→校验→导出")
+    ol.add_argument("premise", nargs="*", help="故事前提（也可 --file 或管道）")
+    ol.add_argument("--file", default=None)
+    ol.add_argument("--branches", type=int, default=None, help="故事方案数量")
+    ol.add_argument("--chapters", type=int, default=12)
+    ol.add_argument("--template", default="linear_causality", choices=list(TEMPLATE_LABELS.keys()),
+                    help="结构模板: " + " | ".join(TEMPLATE_LABELS))
+    ol.add_argument("--pick", type=int, default=None, help="采纳第几个方案(1起)并展开全书结构")
+    ol.add_argument("--build", action="store_true", help="采纳方案并展开结构（等价 --pick 1）")
+    ol.add_argument("--reimprovise", type=int, default=None, help="重新即兴指定章")
+    ol.add_argument("--lock", type=int, default=None, help="锁定指定章")
+    ol.add_argument("--unlock", type=int, default=None, help="解锁指定章")
+    ol.add_argument("--validate", action="store_true", help="校验已保存的 BookPlan")
+    ol.add_argument("--export", action="store_true", help="导出结构为 Markdown")
+    _add_jazz_options(ol)
+    _add_structure_options(ol)
+    ol.set_defaults(func=cmd_outline)
 
     h = sub.add_parser("history", help="查看演奏历史与趋势")
     h.add_argument("--chapter", type=int, default=None)

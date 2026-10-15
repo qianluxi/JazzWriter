@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
+from core.book_plan import BookPlan
 from core.character import Character
 from core.harmony import Harmony
 from core.motif import MotifLibrary
@@ -22,6 +23,8 @@ OUTPUT_DIR = ROOT / "output"
 CHAPTERS_DIR = OUTPUT_DIR / "chapters"
 RUNS_DIR = OUTPUT_DIR / "runs"
 ADVICE_PATH = OUTPUT_DIR / "advice_history.jsonl"
+BOOK_PLAN_PATH = OUTPUT_DIR / "book_plan.json"
+BOOK_OUTLINE_PATH = OUTPUT_DIR / "book_outline.md"
 STATE_PATH = DATA_DIR / "story_state.yaml"
 JAZZ_STATE_PATH = DATA_DIR / "jazz_state.yaml"
 MOTIF_DEF_PATH = DATA_DIR / "motifs.yaml"
@@ -197,6 +200,69 @@ def append_advice(record: Dict[str, Any], path: Optional[Path] = None) -> Path:
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+    return target
+
+
+def save_book_plan(book: BookPlan, path: Optional[Path] = None) -> Path:
+    target = path or BOOK_PLAN_PATH
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(book.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+    return target
+
+
+def load_book_plan(path: Optional[Path] = None) -> Optional[BookPlan]:
+    target = path or BOOK_PLAN_PATH
+    if not target.exists():
+        return None
+    try:
+        return BookPlan.from_dict(json.loads(target.read_text(encoding="utf-8")))
+    except (json.JSONDecodeError, OSError, ValueError):
+        return None
+
+
+def export_book_outline(book: BookPlan, path: Optional[Path] = None) -> Path:
+    """Write a human-readable Markdown outline of the whole book plan."""
+    target = path or BOOK_OUTLINE_PATH
+    target.parent.mkdir(parents=True, exist_ok=True)
+    lines: List[str] = [f"# {book.title or '未命名'}", ""]
+    if book.logline:
+        lines += [f"**核心创意**：{book.logline}", ""]
+    if book.question:
+        lines += [f"**核心命题**：{book.question}", ""]
+    if book.main_conflict:
+        lines += [f"**主要冲突**：{book.main_conflict}", ""]
+    lines += [f"**结构模板**：{book.structure_template}"]
+    if book.cast:
+        lines += [f"**人物**：{'、'.join(book.cast)}"]
+    if book.key_turns:
+        lines += ["", "## 关键转折"]
+        lines += [f"- {t}" for t in book.key_turns]
+    if book.ending:
+        lines += ["", f"**结局**：{book.ending}"]
+    lines += [""]
+    for vol in book.volumes:
+        lines += [f"## 第 {vol.number} 卷 · {vol.title}", ""]
+        for label, value in (("目标", vol.goal), ("开端状态", vol.opening_state),
+                             ("高潮", vol.climax), ("阶段结果", vol.outcome),
+                             ("承接下一卷", vol.sets_up_next)):
+            if value:
+                lines.append(f"- **{label}**：{value}")
+        lines.append("")
+        for ch in vol.chapters:
+            mark = "🔒" if ch.locked else ""
+            lines.append(f"### 第 {ch.number} 章 · {ch.title} {mark}")
+            for label, value in (("功能", ch.function), ("POV", ch.pov),
+                                 ("起因", ch.premise), ("关键行动", ch.key_action),
+                                 ("冲突", ch.conflict), ("结果", ch.outcome),
+                                 ("代价", ch.stakes), ("信息变化", ch.info_change),
+                                 ("人物变化", ch.character_change),
+                                 ("线索", "、".join(ch.threads)),
+                                 ("意象", "、".join(ch.motifs)),
+                                 ("驱向下一章", ch.hook_to)):
+                if value:
+                    lines.append(f"- **{label}**：{value}")
+            lines.append("")
+    target.write_text("\n".join(lines), encoding="utf-8")
     return target
 
 

@@ -1,9 +1,12 @@
-# Novel Jazz Engine（小说爵士引擎）
+# JazzWriter（小说爵士引擎）`v2.0`
 
-> AI 不是打字机，而是乐队的即兴成员。作者不是在"让 AI 写小说"，而是和 AI 一起演奏一部长篇。
+> **长篇小说结构即兴引擎 / Human-AI Improvisational Writing System。**
+> 主要产物不是小说正文，而是**故事方案、全书梗概、分卷结构与逐章摘要**——
+> 帮你探索"这个故事还能怎样成立"。
 
-在固定结构（主题 / 和声 / 动机）下实时创造，生成多个 `Take`（一次演奏），
-作者"回听"评价后再进入下一轮即兴。
+`v2.0` 起，核心循环是：**给定一个创意前提 → 发散出若干实质不同的故事方案 → 采纳/融合 →
+逐级展开全书结构（分卷 + 逐章摘要卡片）→ 结构校验 → 局部重新即兴 → 导出**。
+正文生成降级为可选的"局部演练"。同时在固定主题/和声/动机约束下，仍可像乐手一样即兴文字。
 
 ## 映射关系
 
@@ -38,10 +41,35 @@ python gui.py
 点「▶ 演奏一章」；右侧标签页分别显示 **正文 / 即兴决策(Cue) / 评价 / 建议 / 状态 / 历史**。
 另有「多版本 · 探索路径」「下一章场景建议」。仅用标准库 Tkinter，无需额外安装。
 
-**生成整本小说**：在场景框里**每行写一章的场景**，点「⇒ 生成全书（每行一章）」，
-它会按顺序生成、自动把上一章结尾衔接到下一章（`#` 开头的行视为注释）。
+**结构工作台**：左侧「① 结构即兴」——「生成创意方案」→ 选「采纳方案#」→「采纳并展开全书结构」；
+右侧有「创意候选 / 全书结构 / 结构树 / 章节卡片」标签，可「校验结构 / 锁定·解锁选中章 /
+重新即兴选中章 / 导出结构」。「② 局部演练」里的「按结构渲染正文」才会生成正文。
+所有生成都在**主线程先快照参数、后台线程执行、期间按钮禁用**，避免并发冲突。
 
-## 使用
+## 使用（结构优先）
+
+```powershell
+# 1) 从一个前提发散出若干「实质不同」的故事方案
+python main.py outline "一场技术事故改变了一个家庭" --branches 3 --seed 1
+
+# 2) 采纳某个方案，展开全书结构（分卷 + 逐章摘要卡片）
+python main.py outline "一场技术事故改变了一个家庭" --build --pick 2 --chapters 12 --template mystery
+
+# 3) 结构校验（六维 + 具体问题）／ 锁定 / 重新即兴 / 导出
+python main.py outline --validate
+python main.py outline --lock 3
+python main.py outline --reimprovise 5
+python main.py outline --export            # → output/book_outline.md
+
+# 4) 按结构渲染正文（可选局部演练）
+python main.py book --from-plan --pov 林 --no-save
+```
+
+结构模板：`linear_causality | mystery | multi_pov | ensemble | nonlinear_puzzle | custom`。
+结构参数：`--idea-divergence --causal-variation --character-agency --motif-transformation
+--revelation-delay --branch-count --continuity-strength`。
+
+### 其它命令
 
 ```powershell
 # 查看主题 / 人物 / 和声 / 动机
@@ -62,10 +90,10 @@ python main.py takes "同上" --mode bebop --styles 冷静观察 象征增强 �
 # 模式B：同一主题多次独立即兴（各 Take 走不同叙事路径）
 python main.py takes "同上" --mode bebop --seed 7 --explore --styles 象征增强 心理深入
 
-# 顺序生成「全书」：每个场景/每行一章，自动衔接上文并推进动机
+# 逐章试写（每行一章，自动衔接上文）；场景不足会报错，不再循环复用
 python main.py book "第1章场景" "第2章场景" "第3章场景" --pov 林 --mode bebop --seed 100
+python main.py book --from-plan                # 用 outline 生成的结构渲染正文
 python main.py book --file outline.txt --chapters 3 --style-cycle 冷峻 抒情 象征增强
-python main.py book "..." --update-state      # 顺便把进度写回 data/story_state.yaml
 
 # 生成后给出下一章场景骨架（交互式选择，不自动续写）
 python main.py play "..." --suggest
@@ -201,6 +229,24 @@ openai 与 opencode 两个后端都可用；不设任何 Key 时仍可用 `mock`
 固定随机种子时即兴决策可复现（模型采样另有随机性）；`--show-prompt` 打印的就是
 实际调用模型的同一份 prompt。`history` 命令基于这些记录做排序、筛选与趋势统计。
 
+## 结构即兴引擎（V2.0）
+
+以 `BookPlan` 为中心的创作流程（正文 `Take` 仍保留，用于局部演练）：
+
+```
+前提
+ └─ StoryIdea × N   ── engine/book_planner.py   故事级即兴（发散实质不同的故事方案）
+     └─ BookPlan    ── engine/outline_expander.py 逐级展开为分卷 + ChapterPlan 章节卡片
+         └─ 校验    ── engine/plot_validator.py / structure_evaluator.py（六维 + 具体问题）
+             └─ 局部重新即兴（受锁定保护）
+```
+
+- `core/story_idea.py · volume_plan.py · chapter_plan.py · book_plan.py` — 结构数据模型（含 `status/locked` 与下游影响追踪）。
+- 结构参数（`data/story.yaml` 或命令行）：`idea_divergence / causal_variation / character_agency /
+  motif_transformation / revelation_delay / branch_count / continuity_strength`。
+- 有真实模型时（opencode / openai）由模型产出结构与章节卡片；否则用**确定性生成器**离线跑通（可测试、可复现）。
+- 结构评价独立于文本评价；留白与开放结局不会被机械扣分。
+
 ## 数据文件（乐谱）
 
 - `data/story.yaml` — 主题旋律 + 叙事和声 + 即兴参数
@@ -266,6 +312,8 @@ data/
 - V0.4.1 ✅ 可观测性：完整运行记录 `output/runs` / `history` 趋势 / `--show-prompt` 一致 / 可选语义评价 / 回归测试
 - V0.5 ✅ 叙事即兴引擎：`ImprovisationOperator` 操作库 / 故事状态感知的意外 / 多路径探索(Mode B)
 - V0.6 ◑ 长篇记忆与闭环：`StoryState` 故事圣经 / `scene_planner` 场景骨架 / `Conductor` 可撤销参数闭环 / 文学回听信号（向量记忆待做）
+- **V2.0 ✅ 定位转向「结构即兴引擎」**：`BookPlan/VolumePlan/ChapterPlan` + 故事级发散 +
+  结构校验（六维/问题式）+ 锁定与影响追踪 + 结构工作台 GUI（并发安全）+ 结构导出；正文生成降级为可选。
 - V0.7 ⏳ Jam Session：Director + Soloist + Observer + Editor 顺序合奏
 - V1.0 ⏳ 向量记忆：章节 embedding、叙事偏离检测、动机演变/人物弧可视化
 
