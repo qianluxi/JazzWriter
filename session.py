@@ -359,6 +359,26 @@ class Session:
         save_book_plan(book)
         return book
 
+    def fuse_ideas(self, ideas: List[StoryIdea], a: int, b: int, *,
+                   picks=None, seed=None, use_llm: bool = True) -> StoryIdea:
+        if a == b or not (0 <= a < len(ideas)) or not (0 <= b < len(ideas)):
+            raise ValueError("请选择两个不同的方案编号")
+        return self._planner(seed=seed, use_llm=use_llm).fuse(ideas[a], ideas[b], picks=picks)
+
+    def save_book(self) -> Path:
+        return save_book_plan(self._require_book())
+
+    def update_chapter(self, number: int, fields: Dict[str, Any]) -> BookPlan:
+        book = self._require_book()
+        chapter = book.chapter(number)
+        if chapter is None:
+            raise ValueError(f"第 {number} 章不存在")
+        for key, value in fields.items():
+            if hasattr(chapter, key):
+                setattr(chapter, key, value)
+        save_book_plan(book)
+        return book
+
     def expand_book(self, *, chapters=None, template=None, seed=None) -> BookPlan:
         book = self._require_book()
         n = chapters or len(book.chapters()) or 12
@@ -384,21 +404,35 @@ class Session:
         save_book_plan(self.book)
         return self.book
 
-    def reimprovise_chapter(self, number: int, *, seed=None) -> Tuple[BookPlan, List[int]]:
-        """Re-improvisation never silently overwrites locked chapters."""
+    def reimprovise_chapter(self, number: int, *, seed=None,
+                            regen: Optional[List[int]] = None) -> Tuple[BookPlan, List[int]]:
+        """Re-improvisation with a scoped impact set.
+
+        ``regen`` lists the chapters to actually regenerate; anything else keeps
+        its existing card. Locked chapters are never regenerated. With
+        ``regen=None`` the target plus all downstream chapters are regenerated.
+        Returns ``(book, regenerated_numbers)``.
+        """
         book = self._require_book()
         affected = book.affected_downstream(number)
-        locked = {c.number: c.to_dict() for c in book.chapters() if c.locked}
+        snapshot = {c.number: c.to_dict() for c in book.chapters()}
+        locked = {c.number for c in book.chapters() if c.locked}
+
+        regen_set = set(regen) if regen is not None else ({number} | set(affected))
+        regen_set -= locked
+        if number not in locked:
+            regen_set.add(number)
+
         OutlineExpander(self.theme, book.cast).expand(
             book, len(book.chapters()) or 12, template=book.structure_template,
             seed=seed if seed is not None else (self.effective_params().seed or 0))
         for c in book.chapters():
-            if c.number in locked:
-                saved = ChapterPlan.from_dict(locked[c.number])
+            if c.number not in regen_set and c.number in snapshot:
+                saved = ChapterPlan.from_dict(snapshot[c.number])
                 for field_name, value in saved.to_dict().items():
                     setattr(c, field_name, value)
         save_book_plan(book)
-        return book, affected
+        return book, sorted(regen_set)
 
     def export_outline(self, path=None) -> Path:
         return export_book_outline(self._require_book(), path)

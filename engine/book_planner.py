@@ -118,6 +118,76 @@ class BookPlanner:
             idea.rationale = "改变" + ("、".join(diffs) if diffs else "细节") + "，提供不同的因果与意义走向。"
         return ideas
 
+    def fuse(
+        self,
+        a: StoryIdea,
+        b: StoryIdea,
+        *,
+        picks: Optional[Dict[str, str]] = None,
+    ) -> StoryIdea:
+        """Fuse two hypotheses into one.
+
+        ``picks`` maps a dimension to "a" or "b"; unspecified dimensions blend
+        (causal/relation from A, truth/ending from B) so the result is a genuine
+        hybrid rather than a copy.
+        """
+        llm_idea = self._fuse_from_llm(a, b)
+        if llm_idea is not None:
+            return llm_idea
+
+        picks = picks or {}
+        defaults = {"causal_mechanism": "a", "truth_nature": "b",
+                    "character_relation": "a", "ending_direction": "b"}
+
+        def choose(dim: str) -> str:
+            src = picks.get(dim, defaults[dim])
+            return getattr(b if src == "b" else a, dim)
+
+        fused = StoryIdea(
+            id="fused",
+            label=f"融合 · {a.label[:8]} × {b.label[:8]}",
+            premise=f"{a.premise} ／ {b.premise}",
+            causal_mechanism=choose("causal_mechanism"),
+            truth_nature=choose("truth_nature"),
+            character_relation=choose("character_relation"),
+            ending_direction=choose("ending_direction"),
+            rationale=f"融合 A 的因果与关系、B 的真相与结局，形成新的故事机制。",
+        )
+        ref = [a, b]
+        dims = ["causal_mechanism", "truth_nature", "character_relation", "ending_direction"]
+        best = 0.0
+        for other in ref:
+            diff = sum(1 for d in dims if getattr(fused, d) != getattr(other, d))
+            best = max(best, diff / len(dims))
+        fused.distinctness = round(best, 2)
+        return fused
+
+    def _fuse_from_llm(self, a: StoryIdea, b: StoryIdea) -> Optional[StoryIdea]:
+        prompt = (
+            "把下面两个故事方案融合成一个新的、更独特的方案（不是拼接，而是取两者之长形成新的因果机制）。\n"
+            f"方案A：因果={a.causal_mechanism}；真相={a.truth_nature}；关系={a.character_relation}；结局={a.ending_direction}\n"
+            f"方案B：因果={b.causal_mechanism}；真相={b.truth_nature}；关系={b.character_relation}；结局={b.ending_direction}\n"
+            '输出 JSON：{"label":"","premise":"","causal_mechanism":"","truth_nature":"",'
+            '"character_relation":"","ending_direction":"","rationale":""}'
+        )
+        data = generate_json(self.llm, prompt)
+        if not data:
+            return None
+        fused = StoryIdea(
+            id="fused",
+            label=str(data.get("label", "融合方案")),
+            premise=str(data.get("premise", a.premise)),
+            causal_mechanism=str(data.get("causal_mechanism", "")),
+            truth_nature=str(data.get("truth_nature", "")),
+            character_relation=str(data.get("character_relation", "")),
+            ending_direction=str(data.get("ending_direction", "")),
+            rationale=str(data.get("rationale", "由两个方案融合而成。")),
+        )
+        if not fused.is_viable:
+            return None
+        fused.distinctness = max(a.distinctness, b.distinctness, 0.5)
+        return fused
+
     # -- whole-book build ---------------------------------------------------
     def build(
         self,

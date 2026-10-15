@@ -47,3 +47,59 @@ class ChapterPlan(Model):
 
     def to_dict(self) -> Dict:
         return super().to_dict()
+
+
+# field order + Chinese labels for the editable "card" text format ------------
+FIELDS = [
+    ("title", "标题"),
+    ("function", "功能"),
+    ("pov", "视角"),
+    ("premise", "起因"),
+    ("key_action", "关键行动"),
+    ("conflict", "冲突"),
+    ("outcome", "结果"),
+    ("stakes", "代价"),
+    ("info_change", "信息变化"),
+    ("character_change", "人物变化"),
+    ("threads", "线索"),
+    ("motifs", "意象"),
+    ("hook_from", "承接上一章"),
+    ("hook_to", "驱向下一章"),
+    ("summary", "摘要"),
+    ("notes", "备注"),
+]
+_LABEL_TO_FIELD = {label: field_name for field_name, label in FIELDS}
+_LIST_FIELDS = {"threads", "motifs"}
+
+
+def to_text(ch: ChapterPlan) -> str:
+    """Serialize a chapter card to an editable ``字段：值`` text block."""
+    head = f"第 {ch.number} 章 · {ch.title}　[{ch.status}]"
+    lines = [head, ""]
+    for field_name, label in FIELDS:
+        value = getattr(ch, field_name)
+        if isinstance(value, list):
+            value = "、".join(value)
+        if value:
+            lines.append(f"{label}：{value}")
+    return "\n".join(lines)
+
+
+def apply_text(ch: ChapterPlan, text: str) -> ChapterPlan:
+    """Update a chapter card from edited ``字段：值`` text (partial edits OK)."""
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or "：" not in line and ":" not in line:
+            continue
+        sep = "：" if "：" in line else ":"
+        label, _, value = line.partition(sep)
+        field_name = _LABEL_TO_FIELD.get(label.strip())
+        if not field_name:
+            continue
+        value = value.strip()
+        if field_name in _LIST_FIELDS:
+            parts = [p.strip() for p in value.replace("、", ",").replace("，", ",").split(",") if p.strip()]
+            setattr(ch, field_name, parts)
+        else:
+            setattr(ch, field_name, value)
+    return ch

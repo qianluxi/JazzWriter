@@ -53,6 +53,37 @@ class StoryStructureTest(unittest.TestCase):
                     "character_change", "chapter_contribution", "foreshadowing"):
             self.assertIn(key, report.dimensions)
 
+    def test_fuse_ideas_blends_dimensions(self):
+        ideas = self.session.story_ideas(PREMISE, count=2, seed=1)
+        fused = self.session.fuse_ideas(ideas, 0, 1, seed=1)
+        self.assertTrue(fused.is_viable)
+        # default blend: causal from A, truth from B
+        self.assertEqual(fused.causal_mechanism, ideas[0].causal_mechanism)
+        self.assertEqual(fused.truth_nature, ideas[1].truth_nature)
+        self.assertGreater(fused.distinctness, 0.0)
+
+    def test_update_chapter_roundtrip(self):
+        from core.chapter_plan import apply_text, to_text
+        ideas = self.session.story_ideas(PREMISE, count=2, seed=1)
+        book = self.session.build_book(PREMISE, ideas, pick=0, chapters=5, seed=1)
+        ch = book.chapter(2)
+        text = to_text(ch).replace(ch.conflict, "全新冲突：证据本身不可靠")
+        apply_text(ch, text)
+        self.assertEqual(ch.conflict, "全新冲突：证据本身不可靠")
+        self.session.update_chapter(2, {"title": "改过的标题"})
+        self.assertEqual(self.session.book.chapter(2).title, "改过的标题")
+
+    def test_scoped_regeneration_keeps_unselected(self):
+        ideas = self.session.story_ideas(PREMISE, count=2, seed=1)
+        book = self.session.build_book(PREMISE, ideas, pick=0, chapters=6, seed=1)
+        before = {c.number: c.summary for c in book.chapters()}
+        book2, regenerated = self.session.reimprovise_chapter(2, seed=99, regen=[2, 3])
+        self.assertIn(2, regenerated)
+        self.assertIn(3, regenerated)
+        # chapters outside the scope keep their cards
+        for n in (4, 5, 6):
+            self.assertEqual(book2.chapter(n).summary, before[n])
+
     def test_book_plan_roundtrip(self):
         ideas = self.session.story_ideas(PREMISE, count=2, seed=1)
         book = self.session.build_book(PREMISE, ideas, pick=0, chapters=5, seed=1)

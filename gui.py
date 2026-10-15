@@ -20,6 +20,7 @@ import tkinter as tk
 import tkinter.font as tkfont
 from tkinter import messagebox, ttk
 
+from core.chapter_plan import apply_text, to_text
 from core.improviser import STYLES
 from engine.outline_expander import TEMPLATE_LABELS
 from engine.semantic_similarity import MODES as EVAL_MODES
@@ -132,6 +133,8 @@ class App:
         self.template_var = tk.StringVar(value="linear_causality")
         self.chapters_var = tk.IntVar(value=12)
         self.pick_var = tk.IntVar(value=1)
+        self.fuse_a_var = tk.IntVar(value=1)
+        self.fuse_b_var = tk.IntVar(value=2)
         rows = [
             ("即兴模式", ttk.Combobox(grid, textvariable=self.mode_var, state="readonly",
                                     values=list(MODE_PRESETS.keys()), width=16)),
@@ -143,6 +146,8 @@ class App:
             ("章节", ttk.Spinbox(grid, from_=1, to=999, textvariable=self.chapter_var, width=8)),
             ("全书章数", ttk.Spinbox(grid, from_=1, to=200, textvariable=self.chapters_var, width=8)),
             ("采纳方案#", ttk.Spinbox(grid, from_=1, to=10, textvariable=self.pick_var, width=8)),
+            ("融合方案A#", ttk.Spinbox(grid, from_=1, to=10, textvariable=self.fuse_a_var, width=8)),
+            ("融合方案B#", ttk.Spinbox(grid, from_=1, to=10, textvariable=self.fuse_b_var, width=8)),
             ("随机种子", ttk.Entry(grid, textvariable=self.seed_var, width=18)),
         ]
         for i, (label, widget) in enumerate(rows):
@@ -167,9 +172,11 @@ class App:
 
         ttk.Label(p, text="① 结构即兴（主要产物）", foreground="#06c").pack(anchor="w", pady=(6, 0))
         self._btn(p, "生成创意方案", self.on_ideas)
+        self._btn(p, "融合所选两个方案", self.on_fuse)
         self._btn(p, "采纳并展开全书结构", self.on_build)
         self._btn(p, "校验结构", self.on_validate)
-        self._btn(p, "重新即兴选中章", self.on_reimprovise)
+        self._btn(p, "保存章节卡片编辑", self.on_save_card)
+        self._btn(p, "重新即兴选中章（可选范围）", self.on_reimprovise)
         self._btn(p, "锁定 / 解锁选中章", self.on_toggle_lock)
         self._btn(p, "导出结构 Markdown", self.on_export)
 
@@ -266,6 +273,8 @@ class App:
             "total": self.chapters_var.get(),
             "template": self.template_var.get(),
             "pick": self.pick_var.get(),
+            "fuse_a": self.fuse_a_var.get(),
+            "fuse_b": self.fuse_b_var.get(),
             "seed": int(self.seed_var.get()) if self.seed_var.get().strip() else None,
             "overrides": ({k: v.get() for k, v in self.sliders.items()} if self.custom_var.get() else {}),
             "save": self.save_var.get(),
@@ -350,6 +359,25 @@ class App:
         self._set_tab("创意候选", "\n".join(lines))
         self.nb.select(0)
 
+    def on_fuse(self) -> None:
+        if self.session is None:
+            return
+        snap = self._snapshot()
+        if not snap["scene"]:
+            messagebox.showwarning("缺少前提", "请在场景框写下故事前提。")
+            return
+        if not self.ideas:
+            messagebox.showinfo("先生成创意", "请先点「生成创意方案」。")
+            return
+        a, b = max(1, snap["fuse_a"]) - 1, max(1, snap["fuse_b"]) - 1
+
+        def work():
+            fused = self.session.fuse_ideas(self.ideas, a, b, seed=snap["seed"])
+            ideas = list(self.ideas) + [fused]
+            return ideas
+
+        self._async(work, self._render_ideas, label="融合方案…")
+
     def on_build(self) -> None:
         if self.session is None:
             return
@@ -389,23 +417,79 @@ class App:
         self.nb.select(list(self.tabs).index("评价"))
 
     def on_reimprovise(self) -> None:
+        if self.session is None or self.session.book is None:
+            messagebox.showinfo("尚无结构", "请先展开全书结构。")
+            return
         number = self._selected_chapter()
         if number is None:
             messagebox.showinfo("选择章节", "请在结构树里选中一章。")
             return
+        affected = self.session.book.affected_downstream(number)
+        scope = self._ask_scope(affected)
+        if scope is None:
+            return  # cancelled
         snap = self._snapshot()
 
         def work():
-            return self.session.reimprovise_chapter(number, seed=snap["seed"])
+            return self.session.reimprovise_chapter(number, seed=snap["seed"], regen=scope)
 
         self._async(work, self._render_reimprov, label=f"重新即兴第 {number} 章…")
 
     def _render_reimprov(self, result) -> None:
-        book, affected = result
+        book, regenerated = result
         self._populate_tree(book)
-        self._set_tab("章节卡片", f"已重新即兴；锁定章节保持不变。\n可能受影响的后续章节：{affected}\n\n" + self._cards_text(book))
+        self._set_card(self._cards_text(book))
         self.nb.select(self.tree_tab_index)
-        messagebox.showinfo("完成", f"已重新即兴。可能受影响的后续章节：{affected}")
+        messagebox.showinfo("完成", f"已重新即兴的章节：{regenerated}\n锁定章节保持不变。")
+
+    def on_save_card(self) -> None:
+        if self.session is None or self.session.book is None:
+            messagebox.showinfo("尚无结构", "请先展开全书结构。")
+            return
+        number = self._selected_chapter()
+        if number is None:
+            messagebox.showinfo("选择章节", "请在结构树里选中一章。")
+            return
+        chapter = self.session.book.chapter(number)
+        apply_text(chapter, self.tabs["章节卡片"].get("1.0", "end"))
+        self.session.save_book()
+        self._populate_tree(self.session.book)
+        self.status_var.set(f"已保存第 {number} 章卡片")
+
+    def _ask_scope(self, affected):
+        """Modal checklist of downstream chapters to regenerate."""
+        if not affected:
+            return []
+        locked = set(self.session.book.locked_numbers()) if self.session.book else set()
+        win = tk.Toplevel(self.root)
+        win.title("选择重生成范围")
+        win.transient(self.root)
+        win.grab_set()
+        ttk.Label(win, text="勾选要重新生成的章节（未勾选者保持现有卡片；锁定章不会重生成）",
+                  wraplength=320, justify="left").pack(anchor="w", padx=12, pady=8)
+        frame = ttk.Frame(win)
+        frame.pack(fill="both", expand=True, padx=12)
+        vars_map = {}
+        for n in affected:
+            var = tk.BooleanVar(value=n not in locked)
+            cb = ttk.Checkbutton(frame, text=f"第 {n} 章", variable=var)
+            cb.pack(anchor="w")
+            if n in locked:
+                cb.configure(state="disabled")
+                var.set(False)
+            vars_map[n] = var
+        result = {"value": None}
+
+        def ok():
+            result["value"] = [n for n, v in vars_map.items() if v.get()]
+            win.destroy()
+
+        btns = ttk.Frame(win)
+        btns.pack(fill="x", padx=12, pady=8)
+        ttk.Button(btns, text="确定", command=ok).pack(side="right", padx=4)
+        ttk.Button(btns, text="取消", command=win.destroy).pack(side="right")
+        self.root.wait_window(win)
+        return result["value"]
 
     def on_toggle_lock(self) -> None:
         if self.session is None:
@@ -420,7 +504,7 @@ class App:
         else:
             self.session.lock_chapter(number)
         self._populate_tree(self.session.book)
-        self._set_tab("章节卡片", self._cards_text(self.session.book))
+        self._set_card(self._cards_text(self.session.book))
 
     def on_export(self) -> None:
         if self.session is None:
@@ -559,25 +643,17 @@ class App:
             return
         ch = self.session.book.chapter(number)
         if ch:
-            self._set_tab("章节卡片", self._card_text(ch))
+            self._set_card(to_text(ch))
 
     # -- formatters ---------------------------------------------------------
-    @staticmethod
-    def _card_text(ch) -> str:
-        lines = [f"第 {ch.number} 章 · {ch.title}　[{ch.status}]", ""]
-        for label, value in (("功能", ch.function), ("POV", ch.pov), ("起因", ch.premise),
-                             ("关键行动", ch.key_action), ("冲突", ch.conflict),
-                             ("结果", ch.outcome), ("代价", ch.stakes),
-                             ("信息变化", ch.info_change), ("人物变化", ch.character_change),
-                             ("线索", "、".join(ch.threads)), ("意象", "、".join(ch.motifs)),
-                             ("承接上一章", ch.hook_from), ("驱向下一章", ch.hook_to),
-                             ("摘要", ch.summary)):
-            if value:
-                lines.append(f"  {label}：{value}")
-        return "\n".join(lines)
+    def _set_card(self, text: str) -> None:
+        widget = self.tabs["章节卡片"]
+        widget.configure(state="normal")
+        widget.delete("1.0", "end")
+        widget.insert("1.0", text)
 
     def _cards_text(self, book) -> str:
-        return "\n\n".join(self._card_text(ch) for ch in book.chapters())
+        return "\n\n".join(to_text(ch) for ch in book.chapters())
 
     @staticmethod
     def _structure_text(book) -> str:

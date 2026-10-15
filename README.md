@@ -41,9 +41,11 @@ python gui.py
 点「▶ 演奏一章」；右侧标签页分别显示 **正文 / 即兴决策(Cue) / 评价 / 建议 / 状态 / 历史**。
 另有「多版本 · 探索路径」「下一章场景建议」。仅用标准库 Tkinter，无需额外安装。
 
-**结构工作台**：左侧「① 结构即兴」——「生成创意方案」→ 选「采纳方案#」→「采纳并展开全书结构」；
-右侧有「创意候选 / 全书结构 / 结构树 / 章节卡片」标签，可「校验结构 / 锁定·解锁选中章 /
-重新即兴选中章 / 导出结构」。「② 局部演练」里的「按结构渲染正文」才会生成正文。
+**结构工作台**：左侧「① 结构即兴」——「生成创意方案」→「融合所选两个方案」/ 选「采纳方案#」→
+「采纳并展开全书结构」；右侧有「创意候选 / 全书结构 / 结构树 / 章节卡片」标签。
+在「结构树」选中一章后，「章节卡片」可直接编辑字段并点「保存章节卡片编辑」；
+「重新即兴选中章（可选范围）」会弹出勾选框决定重生成哪些后续章节（锁定章不重生成）。
+「② 局部演练」里的「按结构渲染正文」才会生成正文。
 所有生成都在**主线程先快照参数、后台线程执行、期间按钮禁用**，避免并发冲突。
 
 ## 使用（结构优先）
@@ -58,8 +60,15 @@ python main.py outline "一场技术事故改变了一个家庭" --build --pick 
 # 3) 结构校验（六维 + 具体问题）／ 锁定 / 重新即兴 / 导出
 python main.py outline --validate
 python main.py outline --lock 3
-python main.py outline --reimprovise 5
+python main.py outline --reimprovise 5                 # 重生成第5章及其后续
+python main.py outline --reimprovise 5 --regen 5,6     # 只重生成 5、6 章，其余保持
 python main.py outline --export            # → output/book_outline.md
+
+# 融合两个故事方案（取 A 的因果/关系、B 的真相/结局，形成新的机制）
+python main.py outline "一场技术事故改变了一个家庭" --fuse 1 2
+
+# 编辑某章卡片：准备一个「字段：值」文本文件再导入
+python main.py outline --edit 3 --file card.txt
 
 # 4) 按结构渲染正文（可选局部演练）
 python main.py book --from-plan --pov 林 --no-save

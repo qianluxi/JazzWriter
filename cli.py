@@ -11,6 +11,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from core.chapter_plan import apply_text, to_text
 from core.improviser import MODES, STYLES
 from engine.composer import Take
 from engine.evaluator import Evaluation
@@ -476,14 +477,58 @@ def cmd_outline(args) -> int:
         session.unlock_chapter(args.unlock)
         console.print(f"[green]已解锁第 {args.unlock} 章[/green]")
         return 0
-    if args.reimprovise is not None:
+    if args.edit is not None:
+        if not args.file:
+            console.print("[red]--edit 需要配合 --file 指定卡片文本（字段：值）。[/red]")
+            return 2
         try:
-            book, affected = session.reimprovise_chapter(args.reimprovise, seed=args.seed)
+            book = session._require_book()
         except ValueError as exc:
             console.print(f"[red]{exc}[/red]")
             return 2
-        console.print(f"[green]已重新即兴第 {args.reimprovise} 章[/green]"
-                      f"（锁定章节保持不变；可能受影响：{affected}）")
+        chapter = book.chapter(args.edit)
+        if chapter is None:
+            console.print(f"[red]第 {args.edit} 章不存在[/red]")
+            return 2
+        apply_text(chapter, Path(args.file).read_text(encoding="utf-8"))
+        session.save_book()
+        console.print(f"[green]已更新第 {args.edit} 章卡片[/green]")
+        console.print(Panel(to_text(chapter), title=f"第 {args.edit} 章", border_style="cyan"))
+        return 0
+    if args.fuse:
+        premise = _read_premise(args)
+        if not premise:
+            console.print("[red]--fuse 需要故事前提（参数 / --file / 管道）。[/red]")
+            return 2
+        ideas = session.story_ideas(premise, count=args.branches, seed=args.seed)
+        a, b = args.fuse[0] - 1, args.fuse[1] - 1
+        try:
+            fused = session.fuse_ideas(ideas, a, b, seed=args.seed)
+        except ValueError as exc:
+            console.print(f"[red]{exc}[/red]")
+            return 2
+        console.print(Panel(
+            f"标签：{fused.label}\n因果机制：{fused.causal_mechanism}\n真相性质：{fused.truth_nature}\n"
+            f"关系走向：{fused.character_relation}\n结局方向：{fused.ending_direction}\n"
+            f"差异度：{fused.distinctness:.0%}\n理由：{fused.rationale}",
+            title="融合方案 · Fused Idea", border_style="magenta"))
+        console.print("[dim]把它作为方案 1 采纳即可：`outline ... --build --pick 1`（当前实现下融合方案需在 GUI 中使用）。[/dim]")
+        return 0
+    if args.reimprovise is not None:
+        regen = None
+        if args.regen and args.regen.lower() != "all":
+            try:
+                regen = [int(x) for x in args.regen.split(",") if x.strip()]
+            except ValueError:
+                console.print("[red]--regen 需要逗号分隔的章号或 all[/red]")
+                return 2
+        try:
+            book, regenerated = session.reimprovise_chapter(
+                args.reimprovise, seed=args.seed, regen=regen)
+        except ValueError as exc:
+            console.print(f"[red]{exc}[/red]")
+            return 2
+        console.print(f"[green]已重新即兴[/green]（重生成章：{regenerated}；锁定章保持不变）")
         _print_chapter_map(book)
         return 0
     if args.export:
@@ -807,7 +852,13 @@ def build_parser() -> argparse.ArgumentParser:
                     help="结构模板: " + " | ".join(TEMPLATE_LABELS))
     ol.add_argument("--pick", type=int, default=None, help="采纳第几个方案(1起)并展开全书结构")
     ol.add_argument("--build", action="store_true", help="采纳方案并展开结构（等价 --pick 1）")
+    ol.add_argument("--fuse", nargs=2, type=int, metavar=("A", "B"), default=None,
+                    help="融合两个故事方案（编号从 1 起）")
+    ol.add_argument("--edit", type=int, default=None,
+                    help="用 --file 的卡片文本(字段：值)更新指定章")
     ol.add_argument("--reimprovise", type=int, default=None, help="重新即兴指定章")
+    ol.add_argument("--regen", default=None,
+                    help="配合 --reimprovise：逗号分隔要重生成的章号，或 all")
     ol.add_argument("--lock", type=int, default=None, help="锁定指定章")
     ol.add_argument("--unlock", type=int, default=None, help="解锁指定章")
     ol.add_argument("--validate", action="store_true", help="校验已保存的 BookPlan")
