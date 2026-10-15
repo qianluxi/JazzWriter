@@ -179,6 +179,8 @@ class App:
         self._btn(p, "重新即兴选中章（可选范围）", self.on_reimprovise)
         self._btn(p, "锁定 / 解锁选中章", self.on_toggle_lock)
         self._btn(p, "导出结构 Markdown", self.on_export)
+        self._btn(p, "叙事偏离检测", self.on_deviation)
+        self._btn(p, "导出故事板（md/html）", self.on_report)
 
         ttk.Label(p, text="② 局部演练（可选）", foreground="#06c").pack(anchor="w", pady=(6, 0))
         self._btn(p, "按结构渲染正文", self.on_render)
@@ -515,6 +517,40 @@ class App:
     def _render_export(self, path) -> None:
         messagebox.showinfo("已导出", f"结构已导出到：\n{path}")
         self.status_var.set(f"已导出 {path}")
+
+    def on_deviation(self) -> None:
+        if self.session is None:
+            return
+        self._async(self.session.deviation_report, self._render_deviation, label="偏离检测…")
+
+    def _render_deviation(self, report) -> None:
+        lines = ["偏离检测 · Deviation", ""]
+        lines += [f"· {i}" for i in report.issues]
+        if report.theme_similarity:
+            lines += ["", "主题关联（章节→主题）:"]
+            lines += [f"  第 {d['number']} 章　{d['score']:.0%}" for d in report.theme_similarity]
+        if report.motif_usage:
+            lines += ["", "意象使用次数: " + "，".join(f"{k}×{v}" for k, v in report.motif_usage.items())]
+        if report.duplicates:
+            lines += ["", "疑似重复:"]
+            lines += [f"  第 {d['a_number']} ↔ 第 {d['b_number']} 章　{d['score']:.0%}" for d in report.duplicates[:6]]
+        self._set_tab("评价", "\n".join(lines))
+        self.nb.select(list(self.tabs).index("评价"))
+
+    def on_report(self) -> None:
+        if self.session is None:
+            return
+        self._async(self.session.write_report, self._render_report, label="导出故事板…")
+
+    def _render_report(self, result) -> None:
+        md, html = result
+        messagebox.showinfo("已导出", f"故事板：\n{md}\n{html}")
+        self.status_var.set(f"已导出 {md.name} / {html.name}")
+        try:
+            import os
+            os.startfile(str(html))  # type: ignore[attr-defined]
+        except Exception:  # noqa: BLE001
+            pass
 
     # -- prose actions ------------------------------------------------------
     def on_render(self) -> None:

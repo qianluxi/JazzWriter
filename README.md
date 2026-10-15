@@ -76,6 +76,9 @@ python main.py outline --lock-field 3 conflict
 # 顺序合奏：导演 → 独奏 → 观察 → 编辑（--render 用提案渲染正文）
 python main.py jam "深夜。检修井底，阀门自己转动了。" --pov 林 --render
 
+# 偏离检测 + 导出故事板（动机演变时间线 / 人物弧线 / 伏笔面板；--open 打开 HTML）
+python main.py report --open
+
 # 4) 按结构渲染正文（可选局部演练）
 python main.py book --from-plan --pov 林 --no-save
 ```
@@ -264,8 +267,12 @@ openai 与 opencode 两个后端都可用；不设任何 Key 时仍可用 `mock`
 - **POV 分布**：`multi_pov` 平衡交错并避免视角长跑；`ensemble` 分配连续视角弧；关键转折章（高潮/收束/汇合…）收束到主角视角。
 - **字段级锁定**：`ChapterPlan.locked_fields`——重生成时保留被锁字段；整章锁定时永不改写。
 - **Jam Session（V0.7）**：`jam_session/` 顺序合奏——Director（方向与限制）→ Soloist（人物驱动的行动）→
-  Observer（非中心细节／边缘视角）→ Editor（比较、剔除矛盾与提前揭露、整合提案）。角色任务不同，
-  不各自重写正文；Editor 只给**提案**，不自动升级为正式设定。`python main.py jam "..."`。
+  Observer（非中心细节／边缘视角）→ Editor（**给候选打分排序**、剔除矛盾与提前揭露、整合提案）。
+  角色任务不同，不各自重写正文；Editor 只给**提案**，不自动升级为正式设定。`python main.py jam "..."`。
+- **记忆与偏离检测（V1.0）**：`engine/memory.py`——轻量语义记忆（默认词典向量，可选 embedding）：
+  相似章节检索、**近重复检测**、**主题漂移**、人物弧缺失、意象未使用、结构卡片提前揭露。
+- **故事板导出**：`engine/report.py` 生成 `output/story_report.md` 与自包含 `output/story_report.html`
+  （动机演变时间线 / 人物弧线图 / 线索伏笔面板 / 偏离检测）。`python main.py report --open`。
 
 ## 数据文件（乐谱）
 
@@ -336,7 +343,8 @@ data/
   结构校验（六维/问题式）+ 锁定与影响追踪 + 结构工作台 GUI（并发安全）+ 结构导出；正文生成降级为可选。
 - **V2.1 ✅ 融合 / 卡片编辑 / 范围重生成**。
 - **V2.2 ✅ POV 分布优化 + 字段级锁定 + Jam Session（V0.7）**。
-- V0.7 ✅ Jam Session：Director + Soloist + Observer + Editor 顺序合奏。
-- V1.0 ⏳ 向量记忆：章节 embedding、叙事偏离检测、动机演变/人物弧可视化
+- V0.7 ✅ Jam Session：Director + Soloist + Observer + Editor 顺序合奏（Editor 候选打分排序）。
+- **V2.3 ✅ 记忆与偏离检测 + 故事板导出（动机时间线 / 人物弧线 / 伏笔面板）**。
+- V1.0 ◑ 轻量语义记忆与偏离检测已实现（词典向量 + 可选 embedding）；剩余：真正的向量库与交互式可视化编辑器。
 
 核心循环：**设定 → 即兴决策 → 生成多个可能性 → 回听与比较 → 作者选择 → 更新故事状态 → 下一轮即兴。**

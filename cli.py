@@ -623,6 +623,26 @@ def cmd_jam(args) -> int:
     return 0
 
 
+def cmd_report(args) -> int:
+    session = _build_session(args)
+    try:
+        report = session.deviation_report()
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        return 2
+    lines = [f"· {issue}" for issue in report.issues]
+    console.print(Panel("\n".join(lines), title="偏离检测 · Deviation", border_style="yellow"))
+    md, html = session.write_report()
+    console.print(f"[green]故事板已导出[/green] → {md.name} / {html.name}")
+    if getattr(args, "open", False):
+        try:
+            import os
+            os.startfile(str(html))  # type: ignore[attr-defined]
+        except Exception as exc:  # noqa: BLE001
+            console.print(f"[dim]无法自动打开：{exc}[/dim]")
+    return 0
+
+
 def cmd_evaluate(args) -> int:
     session = _build_session(args)
     path = Path(args.file)
@@ -950,6 +970,10 @@ def build_parser() -> argparse.ArgumentParser:
     jm.add_argument("--no-llm", dest="no_llm", action="store_true", help="强制确定性（不使用模型）")
     _add_jazz_options(jm)
     jm.set_defaults(func=cmd_jam)
+
+    rp = sub.add_parser("report", help="导出故事板（md/html）+ 偏离检测")
+    rp.add_argument("--open", action="store_true", help="导出后用浏览器打开 HTML")
+    rp.set_defaults(func=cmd_report)
 
     e = sub.add_parser("evaluate", help="评价一个已保存的章节文件")
     e.add_argument("file")

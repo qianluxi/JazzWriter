@@ -20,8 +20,10 @@ from core.theme import Theme
 from engine.book_planner import BookPlanner
 from engine.composer import Composer, Take
 from engine.evaluator import Evaluation, Evaluator
+from engine.memory import DeviationReport, MemoryIndex, analyze_book
 from engine.outline_expander import OutlineExpander, TEMPLATE_LABELS
 from engine.plot_validator import PlotValidator
+from engine.report import write_reports
 from engine.scene_planner import ScenePlanner, SceneSkeleton
 from engine.structure_evaluator import StructureEvaluator, StructureReport
 from engine.variation import Variation
@@ -528,6 +530,22 @@ class Session:
             self.record_motifs(take)
             self.persist_motifs()
         return take, eva
+
+    # -- memory & deviation (V1.0) -----------------------------------------
+    def memory_index(self) -> MemoryIndex:
+        return MemoryIndex().add_book(self._require_book())
+
+    def find_related(self, text: str, k: int = 3):
+        return self.memory_index().query(text, k)
+
+    def deviation_report(self) -> DeviationReport:
+        book = self._require_book()
+        return analyze_book(book, self.theme, motifs=self.motifs, story_state=self.story_state)
+
+    def write_report(self, outdir=None) -> Tuple[Path, Path]:
+        book = self._require_book()
+        deviation = analyze_book(book, self.theme, motifs=self.motifs, story_state=self.story_state)
+        return write_reports(book, self.theme, motifs=self.motifs, deviation=deviation, outdir=outdir)
 
     # -- run records --------------------------------------------------------
     def _record_run(self, take: Take, evaluation: Evaluation, cue: Cue,
