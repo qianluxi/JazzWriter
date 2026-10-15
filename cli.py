@@ -365,10 +365,9 @@ def cmd_book(args) -> int:
     if not scenes:
         console.print("[red]缺少场景。每章一行，或使用 --file 指定文件。[/red]")
         return 2
-    if args.chapters:
-        scenes = scenes[:args.chapters]
 
-    console.print(f"[dim]拟演奏 {len(scenes)} 章 …[/dim]")
+    expected = args.chapters or len(scenes)
+    console.print(f"[dim]拟演奏 {expected} 章 …[/dim]")
     results = session.compose_book(
         scenes,
         pov=args.pov,
@@ -377,6 +376,7 @@ def cmd_book(args) -> int:
         jazz_mode=args.mode,
         seed=args.seed,
         overrides=_jazz_overrides(args),
+        target_chapters=args.chapters,
         save=not args.no_save,
         update_state=args.update_state,
     )

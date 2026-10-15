@@ -248,10 +248,16 @@ class Session:
         jazz_mode: Optional[str] = None,
         seed: Optional[int] = None,
         overrides: Optional[Dict[str, float]] = None,
+        target_chapters: Optional[int] = None,
         save: bool = True,
         update_state: bool = False,
     ) -> List[Tuple[int, Take, Evaluation]]:
         """Play the whole book, one scene per chapter, chaining continuity.
+
+        ``target_chapters`` is authoritative: if fewer scenes are given than
+        chapters requested, the scene list is cycled to reach that count; if
+        more, only the first are used. This lets "全书章数 = 3" always produce
+        3 chapters even from a single premise line.
 
         Each chapter receives the previous chapter's tail as ``previous_summary``
         (and recent texts for novelty), so the band remembers what it just played.
@@ -259,6 +265,14 @@ class Session:
         reproducible yet each chapter still varies.
         """
         scenes = [s.strip() for s in scenes if s and s.strip()]
+        if not scenes:
+            return []
+        if target_chapters:
+            target = max(1, int(target_chapters))
+            if len(scenes) < target:
+                scenes = [scenes[i % len(scenes)] for i in range(target)]
+            else:
+                scenes = scenes[:target]
         total = len(scenes)
         results: List[Tuple[int, Take, Evaluation]] = []
         prev_summary = ""

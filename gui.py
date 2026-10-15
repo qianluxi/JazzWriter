@@ -95,7 +95,7 @@ class App:
         self.scene_text = tk.Text(parent, width=42, height=6, wrap="word")
         self.scene_text.pack(fill="x", pady=(2, 2))
         self.scene_text.insert("1.0", "冬夜。学校食堂，一台报废的蒸汽机仍在运行。")
-        ttk.Label(parent, text="提示：多行时「生成全书」会每行生成一章（# 开头为注释）",
+        ttk.Label(parent, text="提示：「生成全书」按「全书章数」生成；场景每行一章，行数不足会循环复用（# 开头为注释）",
                   foreground="#888", wraplength=330, justify="left").pack(anchor="w", pady=(0, 6))
 
         grid = ttk.Frame(parent)
@@ -294,7 +294,8 @@ class App:
 
     def _render_play(self, result) -> None:
         take, eva, advice, skeletons = result
-        self._set_tab("正文", take.text)
+        header = f"──────── 第 {take.chapter} 章 · {take.mode} · {take.style} · POV {take.pov} ────────\n"
+        self._set_tab("正文", header + take.text)
         self._set_tab("即兴决策", self._cue_text(take))
         self._set_tab("评价", self._eval_text(eva))
         self._set_tab("建议", self._advice_text(advice) + "\n\n" + self._plan_text(skeletons))
@@ -314,7 +315,9 @@ class App:
             return self.session.compose_book(
                 scenes, pov=pov, style=self.style_var.get(),
                 jazz_mode=self.mode_var.get(), seed=self._seed(),
-                overrides=self._overrides(), save=self.save_var.get(),
+                overrides=self._overrides(),
+                target_chapters=self.total_var.get(),   # 全书章数为准
+                save=self.save_var.get(),
             )
 
         self._async(work, self._render_book)
