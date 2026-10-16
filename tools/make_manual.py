@@ -106,7 +106,7 @@ def build() -> Document:
     _cjk(srun.font)
     ver = doc.add_paragraph()
     ver.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    vrun = ver.add_run("适用版本 v2.6　·　Novel Jazz Engine")
+    vrun = ver.add_run("适用版本 v2.7　·　Novel Jazz Engine")
     vrun.font.size = Pt(11)
     vrun.font.color.rgb = RGBColor.from_string("999999")
     _cjk(vrun.font)
@@ -242,6 +242,11 @@ def build() -> Document:
            "desire / fear（欲望与恐惧）、blind_spots（认知局限，会在何处误判）、"
            "secrets（隐瞒）、capabilities / constraints（能做 / 受限）、current_goal（当下目标）。")
     p(doc, "关系网络比继续给人加形容词更重要：它决定“谁必须合作、谁可能互相阻碍、一个人的选择如何代价化另一个人”。")
+    bullets(doc, [
+        "每章可记录关系变化（谁与谁 / 如何变 / 因为什么）；转折类章节会依据关系里的“压力点/可能走向”自动生成。",
+        "校验会提示：未定义的关系发生了变化、关系变化缺少原因、已定义的关系在全书中从未发生变化。",
+        "用 python main.py chars 或 GUI「人物」页可查看每条关系在哪些章发生变化。",
+    ])
     h2(doc, "硬约束 vs 软约束")
     bullets(doc, [
         "硬约束（不可违反）：世界规则、禁忌、已确定事实、人物认知、未决线索的揭露时机",

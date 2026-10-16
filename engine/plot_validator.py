@@ -27,7 +27,7 @@ class Issue:
 
 
 class PlotValidator:
-    def validate(self, book: BookPlan) -> List[Issue]:
+    def validate(self, book: BookPlan, relationships=None) -> List[Issue]:
         issues: List[Issue] = []
         chapters = book.chapters()
         if not chapters:
@@ -56,6 +56,44 @@ class PlotValidator:
                 if idle:
                     issues.append(Issue("medium", "unused_character",
                                         f"人物全程未参与任何章节：{idle}（检查是否被闲置或未与主戏连接）"))
+
+        # unknown character ids referenced by chapters
+        known = set(book.cast_ids)
+        if known:
+            for c in chapters:
+                refs = set(c.characters_involved)
+                if c.pov_character_id:
+                    refs.add(c.pov_character_id)
+                for rc in c.relationship_changes:
+                    refs.update(rc.get("pair", []) or [])
+                unknown = sorted(r for r in refs if r and r not in known)
+                if unknown:
+                    issues.append(Issue("high", "unknown_character",
+                                        f"第 {c.number} 章引用了未知人物 id：{unknown}", c.number))
+
+        # relationship continuity
+        rels = getattr(relationships, "relationships", None) if relationships is not None else None
+        if rels:
+            defined = {(r.source_id, r.target_id) for r in rels} | {(r.target_id, r.source_id) for r in rels}
+            changed_pairs = set()
+            for c in chapters:
+                for rc in c.relationship_changes:
+                    pair = rc.get("pair") or []
+                    if len(pair) != 2:
+                        continue
+                    p = (pair[0], pair[1])
+                    changed_pairs.add(p)
+                    changed_pairs.add((pair[1], pair[0]))
+                    if p not in defined:
+                        issues.append(Issue("medium", "relationship",
+                                            f"第 {c.number} 章发生了未定义的关系变化：{pair}", c.number))
+                    if not rc.get("cause"):
+                        issues.append(Issue("low", "relationship",
+                                            f"第 {c.number} 章的关系变化缺少原因（cause）", c.number))
+            for r in rels:
+                if r.source_id in known and r.target_id in known and (r.source_id, r.target_id) not in changed_pairs:
+                    issues.append(Issue("medium", "relationship",
+                                        f"关系 {r.source_id}↔{r.target_id} 在全书从未发生变化"))
 
         for ch in chapters:
             missing = [f for f, v in (("起因", ch.premise), ("冲突", ch.conflict),

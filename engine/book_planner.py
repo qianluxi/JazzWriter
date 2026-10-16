@@ -348,6 +348,9 @@ class BookPlanner:
             stakes=str(citem.get("stakes", "")),
             info_change=str(citem.get("info_change", "")),
             character_change=str(citem.get("character_change", "")),
+            pov_character_id=str(citem.get("pov_character_id", "")),
+            characters_involved=[str(x) for x in citem.get("characters_involved", [])],
+            relationship_changes=[rc for rc in citem.get("relationship_changes", []) if isinstance(rc, dict)],
             threads=[str(x) for x in citem.get("threads", [])],
             motifs=[str(x) for x in citem.get("motifs", [])],
             hook_from=str(citem.get("hook_from", "")),
@@ -391,11 +394,16 @@ class BookPlanner:
             f"方案：因果={idea.causal_mechanism}；结局={idea.ending_direction}\n"
             f"本卷目标：{meta.get('goal', '')}；高潮：{meta.get('climax', '')}；阶段结果：{meta.get('outcome', '')}\n"
             f"前文摘要：{prior_brief}\n"
+            f"人物关系网络（变化须来自已定义的关系）：\n{self._relationships_brief() or '（未定义）'}\n"
             f"硬约束（必须遵守）：{self._constraints_text()}\n"
-            f"每章必须包含：function/pov/premise/key_action/conflict/outcome/stakes/info_change/"
-            f"character_change/threads/motifs/hook_from/hook_to/summary，冲突与结果不得为空。\n"
-            '只输出 JSON：{"chapters":[{"title":"","function":"","pov":"","premise":"","key_action":"",'
-            '"conflict":"","outcome":"","stakes":"","info_change":"","character_change":"",'
+            f"每章必须包含：function/pov/pov_character_id/characters_involved/premise/key_action/conflict/"
+            f"outcome/stakes/info_change/character_change/threads/motifs/hook_from/hook_to/summary，"
+            f"冲突与结果不得为空。\n"
+            "若某章让两个已知人物的关系发生变化，请填 relationship_changes（pair=[id,id]，change，cause）；"
+            "pair 必须来自上面已定义的关系网络。\n"
+            '只输出 JSON：{"chapters":[{"title":"","function":"","pov":"","pov_character_id":"",'
+            '"characters_involved":[],"premise":"","key_action":"","conflict":"","outcome":"","stakes":"",'
+            '"info_change":"","character_change":"","relationship_changes":[{"pair":["",""],"change":"","cause":""}],'
             '"threads":[],"motifs":[],"hook_from":"","hook_to":"","summary":""}]}'
             f"（chapters 数组长度必须等于 {want}）"
         )

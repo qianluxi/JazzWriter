@@ -807,6 +807,13 @@ def cmd_chars(args) -> int:
     if session.relationships.relationships:
         console.print(Panel(session.relationships_brief(),
                             title="人物关系网络 · Relationships", border_style="blue"))
+        rt = Table(title="关系变化 · Relationship Changes", header_style="bold")
+        for col in ("关系", "类型", "在哪些章发生变化"):
+            rt.add_column(col)
+        for row in session.relationship_changes_view():
+            marks = "、".join(f"第{c['chapter']}章" for c in row["changes"]) or "从未变化"
+            rt.add_row("↔".join(row["pair"]), row["type"], marks)
+        console.print(rt)
     return 0
 
 

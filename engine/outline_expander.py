@@ -38,6 +38,8 @@ TEMPLATE_LABELS = {
 
 # functions where the cast should converge on the protagonist's POV
 CONVERGE_FUNCS = {"高潮", "收束", "反转", "汇合", "重组", "指认", "回应"}
+# functions where a relationship is most likely to shift
+REL_CHANGE_FUNCS = CONVERGE_FUNCS | {"危机", "低谷", "转折", "对撞", "中点转折"}
 MULTI_POV_TEMPLATES = {"multi_pov", "ensemble"}
 
 
@@ -116,6 +118,7 @@ class OutlineExpander:
                           "decision": self._action(fn, pov, turn),
                           "motivation": pov_char.desire or ""}]
             knowledge = [{"character_id": pov_id, "learned": info_line}] if info_line else []
+            rel_changes = self._relationship_changes(fn, involved)
 
             chapters.append(ChapterPlan(
                 number=i + 1,
@@ -126,6 +129,7 @@ class OutlineExpander:
                 characters_involved=involved,
                 character_decisions=decisions,
                 knowledge_changes=knowledge,
+                relationship_changes=rel_changes,
                 premise=prev_hook,
                 key_action=self._action(fn, pov, turn),
                 conflict=conflict,
@@ -195,6 +199,19 @@ class OutlineExpander:
 
     def _char_change(self, fn: str, pov: str) -> str:
         return f"{pov}对核心命题的判断出现shift（{fn}）"
+
+    def _relationship_changes(self, fn: str, involved: List[str]) -> List[dict]:
+        """On turning-point chapters, move one defined relationship (if present)."""
+        if fn not in REL_CHANGE_FUNCS or not self.relationships.relationships:
+            return []
+        inv = set(involved)
+        for r in self.relationships.relationships:
+            if r.source_id in inv and r.target_id in inv:
+                change = r.possible_transition or (
+                    f"围绕「{(r.conflict or '共同处境')[:14]}」，关系出现松动")
+                return [{"pair": [r.source_id, r.target_id], "change": change,
+                         "cause": r.pressure_point or ""}]
+        return []
 
     def _hook(self, fn: str, turn: str, i: int, n: int) -> str:
         if i >= n - 1:

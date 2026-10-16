@@ -458,7 +458,24 @@ class Session:
         if target is None:
             raise ValueError("尚无 BookPlan")
         llm = self.provider if getattr(self.provider, "name", "mock") not in ("mock", "") else None
-        return StructureEvaluator(reviewer=NarrativeReviewer(llm)).evaluate(target)
+        return StructureEvaluator(reviewer=NarrativeReviewer(llm),
+                                  relationships=self.relationships).evaluate(target)
+
+    def relationship_changes_view(self) -> List[dict]:
+        """Per-relationship chapter changes (for the continuity view)."""
+        rows = []
+        for r in self.relationships.relationships:
+            changes = []
+            if self.book is not None:
+                for c in self.book.chapters():
+                    for rc in c.relationship_changes:
+                        pair = rc.get("pair") or []
+                        if {r.source_id, r.target_id} == set(pair):
+                            changes.append({"chapter": c.number,
+                                            "change": rc.get("change", ""),
+                                            "cause": rc.get("cause", "")})
+            rows.append({"pair": [r.source_id, r.target_id], "type": r.type, "changes": changes})
+        return rows
 
     def lock_chapter(self, number: int) -> BookPlan:
         self._require_book().lock(number)
