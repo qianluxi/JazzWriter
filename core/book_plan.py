@@ -32,7 +32,8 @@ class BookPlan(Model):
     climax: str = ""              # 全书高潮
     resolution: str = ""          # 主要冲突的最终处理
     main_conflict: str = ""
-    cast: List[str] = Field(default_factory=list)
+    cast: List[str] = Field(default_factory=list)          # display names
+    cast_ids: List[str] = Field(default_factory=list)      # stable character ids
     key_turns: List[str] = Field(default_factory=list)
     ending: str = ""
     structure_template: str = "linear_causality"

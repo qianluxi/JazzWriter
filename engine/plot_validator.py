@@ -48,6 +48,15 @@ class PlotValidator:
             if vnums != sorted(vnums):
                 issues.append(Issue("low", "order", f"第 {vol.number} 卷章节顺序不正确：{vnums}"))
 
+        # character usage: a registered character that never participates
+        if book.cast_ids:
+            involved = {cid for c in chapters for cid in c.characters_involved}
+            if involved:
+                idle = [cid for cid in book.cast_ids if cid not in involved]
+                if idle:
+                    issues.append(Issue("medium", "unused_character",
+                                        f"人物全程未参与任何章节：{idle}（检查是否被闲置或未与主戏连接）"))
+
         for ch in chapters:
             missing = [f for f, v in (("起因", ch.premise), ("冲突", ch.conflict),
                                       ("结果", ch.outcome)) if not v]

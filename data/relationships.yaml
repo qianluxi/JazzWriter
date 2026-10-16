@@ -1,0 +1,40 @@
+relationships:
+  - source_id: lin
+    target_id: su
+    type: 调查者与档案管理者
+    mutual_interest: 林需要苏保存的档案重建事故；苏需要林的行动让名字重见
+    conflict: 林要求公开原始记录，苏担心公开会暴露自己的过去
+    asymmetry: 林有调查行动力，苏握有信息
+    initial_state: 互相戒备的交易关系
+    pressure_point: 林要求查看被烧毁名单所剩的那一页
+    possible_transition: 从交易走向有限信任，或因是否公开而决裂
+
+  - source_id: lin
+    target_id: wei
+    type: 晚辈与前辈
+    mutual_interest: 林把魏当作父亲的旧同事；魏对林抱愧疚
+    conflict: 魏要阻止翻案，林执意追查
+    asymmetry: 魏知内情，林只有直觉
+    initial_state: 表面关怀、暗中设阻
+    pressure_point: 值班表被改动的事实浮现
+    possible_transition: 魏从阻挡转为背负，或彻底沉默
+
+  - source_id: su
+    target_id: wei
+    type: 同为当年知情者
+    mutual_interest: 都希望过去被妥善安放
+    conflict: 苏想留下名字，魏想让一切安静
+    asymmetry: 魏掌握命令来源，苏掌握名单
+    initial_state: 心照不宣的默契
+    pressure_point: 名单残页被公开的风险
+    possible_transition: 一方先打破沉默
+
+  - source_id: chen
+    target_id: zhao
+    type: 目击者与调查者
+    mutual_interest: 陈想脱身，赵想结案
+    conflict: 赵需要陈的证词支持“设备老化”，陈怕被牵连
+    asymmetry: 赵有权，陈无地位
+    initial_state: 赵施压、陈回避
+    pressure_point: 陈被要求签一份他没读过的证词
+    possible_transition: 陈说谎自保，或在压力下松口

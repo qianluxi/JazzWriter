@@ -29,6 +29,12 @@ class ChapterPlan(Model):
     stakes: str = ""              # 代价 / 赌注
     info_change: str = ""         # 信息变化（读者或人物知道/误解了什么）
     character_change: str = ""    # 人物状态/认知变化
+    # -- character participation (V2.6) --
+    pov_character_id: str = ""                              # 视角人物的稳定 id
+    characters_involved: List[str] = Field(default_factory=list)   # 参与本章的人物 id
+    character_decisions: List[Dict] = Field(default_factory=list)  # {character_id, decision, motivation}
+    knowledge_changes: List[Dict] = Field(default_factory=list)    # {character_id, learned}
+    relationship_changes: List[Dict] = Field(default_factory=list)  # {pair, change, cause}
     threads: List[str] = Field(default_factory=list)   # 涉及的线索 id/名
     motifs: List[str] = Field(default_factory=list)    # 涉及的意象
     hook_from: str = ""           # 与上一章的因果入口
@@ -59,6 +65,8 @@ FIELDS = [
     ("title", "标题"),
     ("function", "功能"),
     ("pov", "视角"),
+    ("pov_character_id", "视角ID"),
+    ("characters_involved", "参与人物"),
     ("premise", "起因"),
     ("key_action", "关键行动"),
     ("conflict", "冲突"),
@@ -74,7 +82,7 @@ FIELDS = [
     ("notes", "备注"),
 ]
 _LABEL_TO_FIELD = {label: field_name for field_name, label in FIELDS}
-_LIST_FIELDS = {"threads", "motifs"}
+_LIST_FIELDS = {"threads", "motifs", "characters_involved"}
 FIELD_NAMES = [field_name for field_name, _ in FIELDS]
 
 

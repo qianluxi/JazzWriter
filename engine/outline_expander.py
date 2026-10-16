@@ -13,6 +13,8 @@ from typing import Dict, List, Optional
 
 from core.book_plan import BookPlan
 from core.chapter_plan import ChapterPlan
+from core.character import Character
+from core.relationship import RelationshipMap
 from core.theme import Theme
 from core.volume_plan import VolumePlan
 
@@ -47,9 +49,14 @@ def _sequence(template: str, n: int) -> List[str]:
 
 
 class OutlineExpander:
-    def __init__(self, theme: Theme, cast: List[str]) -> None:
+    def __init__(self, theme: Theme, cast, *, relationships: Optional[RelationshipMap] = None) -> None:
         self.theme = theme
-        self.cast = cast or ["主角"]
+        self.characters: List[Character] = [
+            c if isinstance(c, Character) else Character(name=str(c)) for c in (cast or [])
+        ] or [Character(name="主角")]
+        self.cast = [c.name for c in self.characters]
+        self.relationships = relationships or RelationshipMap()
+        self._pov_characters = [c for c in self.characters if getattr(c, "pov", True)] or self.characters
 
     def expand(
         self,
@@ -84,9 +91,18 @@ class OutlineExpander:
         for i in range(chapter_count):
             fn = functions[i]
             turn = turns[i % len(turns)]
-            pov = povs[i]
+            pov_char = povs[i]
             if template in MULTI_POV_TEMPLATES and fn in CONVERGE_FUNCS:
-                pov = self.cast[0]  # converge on the protagonist for turning points
+                pov_char = self._pov_characters[0]  # converge on the protagonist
+            pov = pov_char.name
+            pov_id = pov_char.effective_id
+            involved = [pov_id]
+            # rotating co-participant (may be a non-POV character) so the whole
+            # cast gets used and relationships can move across chapters
+            if len(self.characters) > 1:
+                other = self.characters[(i + 1) % len(self.characters)]
+                if other.effective_id not in involved:
+                    involved.append(other.effective_id)
             active_threads = [t for t, s in schedule.items() if s["intro"] == i]
             reveal_threads = [t for t, s in schedule.items() if s["reveal"] == i and s["intro"] != i]
             ch_motifs = [motifs[i % len(motifs)], motifs[(i + 1) % len(motifs)]]
@@ -95,18 +111,27 @@ class OutlineExpander:
             conflict = self._conflict(fn, turn, pov, book)
             outcome = self._outcome(fn, turn)
             hook_to = self._hook(fn, turn, i, chapter_count)
+            info_line = self._info(fn, reveal_threads)
+            decisions = [{"character_id": pov_id,
+                          "decision": self._action(fn, pov, turn),
+                          "motivation": pov_char.desire or ""}]
+            knowledge = [{"character_id": pov_id, "learned": info_line}] if info_line else []
 
             chapters.append(ChapterPlan(
                 number=i + 1,
                 title=f"{fn}·{turn[:12]}" if turn else fn,
                 function=fn,
                 pov=pov,
+                pov_character_id=pov_id,
+                characters_involved=involved,
+                character_decisions=decisions,
+                knowledge_changes=knowledge,
                 premise=prev_hook,
                 key_action=self._action(fn, pov, turn),
                 conflict=conflict,
                 outcome=outcome,
                 stakes=self._stakes(book),
-                info_change=self._info(fn, reveal_threads),
+                info_change=info_line,
                 character_change=self._char_change(fn, pov),
                 threads=active_threads + reveal_threads,
                 motifs=ch_motifs,
@@ -119,9 +144,9 @@ class OutlineExpander:
         book.volumes = self._group_volumes(book, chapters, template)
         return book
 
-    def _pov_plan(self, n: int, template: str, rng: random.Random) -> List[str]:
-        """Distribute viewpoints sensibly per structure template."""
-        cast = self.cast or ["主角"]
+    def _pov_plan(self, n: int, template: str, rng: random.Random) -> List[Character]:
+        """Distribute viewpoints sensibly per structure template (POV-eligible only)."""
+        cast = self._pov_characters
         m = len(cast)
         if m == 1:
             return [cast[0]] * n
@@ -132,7 +157,7 @@ class OutlineExpander:
             sizes = [n // m] * m
             for i in range(n % m):
                 sizes[i] += 1
-            seq: List[str] = []
+            seq: List[Character] = []
             for c, size in zip(order, sizes):
                 seq.extend([c] * size)
             return seq
@@ -141,10 +166,10 @@ class OutlineExpander:
             # so the same viewpoint never runs on across a cycle boundary
             order = cast[:]
             rng.shuffle(order)
-            seq: List[str] = []
+            seq: List[Character] = []
             while len(seq) < n:
                 cycle = order[:]
-                if seq and len(cycle) > 1 and cycle[0] == seq[-1]:
+                if seq and len(cycle) > 1 and cycle[0] is seq[-1]:
                     cycle = cycle[1:] + cycle[:1]
                 seq.extend(cycle)
             return seq[:n]

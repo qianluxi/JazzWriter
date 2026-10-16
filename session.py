@@ -14,6 +14,7 @@ from core.chapter_plan import ChapterPlan
 from core.harmony import Harmony
 from core.improviser import HarmonyContext, Improviser, canonical_mode
 from core.motif import MotifLibrary
+from core.relationship import RelationshipMap
 from core.story_idea import StoryIdea
 from core.story_state import StoryState
 from core.theme import Theme
@@ -40,6 +41,7 @@ from store import (
     load_jazz,
     load_jazz_state,
     load_motifs,
+    load_relationships,
     load_story,
     load_story_state,
     save_book_plan,
@@ -69,6 +71,7 @@ class Session:
         eval_mode: str = "lexical",
         motif_state_path: Optional[Path] = None,
         book: Optional[BookPlan] = None,
+        relationships: Optional[RelationshipMap] = None,
     ) -> None:
         self.theme = theme
         self.harmony = harmony
@@ -81,6 +84,7 @@ class Session:
         self.eval_mode = eval_mode
         self.motif_state_path = motif_state_path
         self.book: Optional[BookPlan] = book
+        self.relationships: RelationshipMap = relationships or RelationshipMap()
 
     # -- construction -------------------------------------------------------
     @classmethod
@@ -97,6 +101,7 @@ class Session:
         motifs = load_motifs(base / "motifs.yaml", base / "motif_state.yaml")
         motifs.ensure(theme.motifs)
         state = load_story_state(base / "story_state.yaml")
+        relationships = load_relationships(base / "relationships.yaml")
         # runtime state (jazz_state.yaml) wins over author default (story.yaml)
         runtime = load_jazz_state(base / "jazz_state.yaml")
         jazz = JazzParams.from_dict(runtime) if runtime else JazzParams.from_dict(load_jazz(base / "story.yaml"))
@@ -109,6 +114,7 @@ class Session:
             story_state=state,
             eval_mode=eval_mode,
             motif_state_path=base / "motif_state.yaml",
+            relationships=relationships,
         )
         session.book = load_book_plan()
         return session
@@ -349,7 +355,8 @@ class Session:
         if use_llm and getattr(self.provider, "name", "mock") not in ("mock", ""):
             llm = self.provider
         return BookPlanner(self.theme, self._char_list(), params, llm=llm,
-                           harmony=self.harmony, story_state=self.story_state)
+                           harmony=self.harmony, story_state=self.story_state,
+                           relationships=self.relationships)
 
     @staticmethod
     def _premise_hash(premise: str) -> str:
@@ -367,6 +374,25 @@ class Session:
     def ideas_stale(self, ideas: List[StoryIdea], premise: str) -> bool:
         ph = self._premise_hash(premise)
         return any(i.premise_hash and i.premise_hash != ph for i in ideas)
+
+    def character_usage(self) -> List[dict]:
+        """Per-character chapter participation (for the usage view)."""
+        counts: Dict[str, List[int]] = {c.effective_id: [] for c in self._char_list()}
+        if self.book is not None:
+            for ch in self.book.chapters():
+                for cid in ch.characters_involved:
+                    counts.setdefault(cid, []).append(ch.number)
+        rows = []
+        for c in self._char_list():
+            rows.append({"id": c.effective_id, "name": c.name, "tier": c.tier,
+                         "pov": c.pov, "chapters": sorted(counts.get(c.effective_id, []))})
+        return rows
+
+    def idle_characters(self) -> List[str]:
+        return [r["id"] for r in self.character_usage() if not r["chapters"]]
+
+    def relationships_brief(self) -> str:
+        return self.relationships.brief([c.effective_id for c in self._char_list()])
 
     def compare_ideas(self, ideas: List[StoryIdea]) -> List[dict]:
         rows = []
@@ -420,7 +446,8 @@ class Session:
                 "全书结构已存在；expand 会重写所有章节卡片。"
                 "如确需重写请传 force=True，或改用按章重新即兴（reimprovise_candidates）。")
         n = chapters or len(book.chapters()) or 12
-        OutlineExpander(self.theme, book.cast).expand(
+        OutlineExpander(self.theme, self._char_list(),
+                        relationships=self.relationships).expand(
             book, n, template=template or book.structure_template,
             seed=seed if seed is not None else (self.effective_params().seed or 0))
         save_book_plan(book)

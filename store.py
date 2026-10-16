@@ -12,6 +12,7 @@ from core.book_plan import BookPlan
 from core.character import Character
 from core.harmony import Harmony
 from core.motif import MotifLibrary
+from core.relationship import RelationshipMap
 from core.story_state import StoryState
 from core.theme import Theme
 from engine.composer import Take
@@ -29,6 +30,7 @@ STATE_PATH = DATA_DIR / "story_state.yaml"
 JAZZ_STATE_PATH = DATA_DIR / "jazz_state.yaml"
 MOTIF_DEF_PATH = DATA_DIR / "motifs.yaml"
 MOTIF_STATE_PATH = DATA_DIR / "motif_state.yaml"
+RELATIONSHIPS_PATH = DATA_DIR / "relationships.yaml"
 
 
 def _load_yaml(path: Path) -> Dict[str, Any]:
@@ -57,6 +59,19 @@ def load_characters(path: Optional[Path] = None) -> Dict[str, Character]:
         character = Character.from_dict(item)
         result[character.name] = character
     return result
+
+
+def load_relationships(path: Optional[Path] = None) -> RelationshipMap:
+    data = _load_yaml(path or RELATIONSHIPS_PATH)
+    return RelationshipMap.from_dict(data) if data else RelationshipMap()
+
+
+def save_relationships(rel_map: RelationshipMap, path: Optional[Path] = None) -> Path:
+    target = path or RELATIONSHIPS_PATH
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with target.open("w", encoding="utf-8") as fh:
+        yaml.safe_dump(rel_map.to_dict(), fh, allow_unicode=True, sort_keys=False)
+    return target
 
 
 def load_motifs(

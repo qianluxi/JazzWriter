@@ -1,5 +1,8 @@
 characters:
-  - name: 林
+  - id: lin
+    name: 林
+    tier: core
+    pov: true
     role: 检修工程师
     desire: 查清父亲那场事故的真相
     fear: 发现父亲也是共谋，而自己正重复他
@@ -7,6 +10,16 @@ characters:
     worldview: 任何故障都有可查明的原因
     contradiction: 相信理性，却在做决定时凭直觉
     voice: 短句，专业术语夹在日常里
+    blind_spots:
+      - 认为一切都能靠技术还原，忽略当时的人际与政治压力
+    secrets: []
+    capabilities:
+      - 熟练的检修与测量
+      - 接触核心机械的权限
+    constraints:
+      - 不信任口述记忆
+      - 缺乏调阅密档的权限
+    current_goal: 找到父亲值夜那天被改动的记录
     rules:
       - 遇到未知：先测量，再记录，最后才允许害怕
       - 遇到危险：把情绪压进技术动作里
@@ -14,7 +27,10 @@ characters:
     arc_from: 相信技术中立
     arc_to: 承认技术是人的欲望的延长
 
-  - name: 苏
+  - id: su
+    name: 苏
+    tier: core
+    pov: true
     role: 档案管理员
     desire: 让被抹去的名字重新出现
     fear: 自己保存的记忆也被改写
@@ -22,8 +38,89 @@ characters:
     worldview: 记忆即权力
     contradiction: 守护真相，却依赖谎言生存
     voice: 缓慢、反问、留白
+    blind_spots:
+      - 把记忆当作唯一真相，忽略记忆也会被权力塑造
+    secrets:
+      - 烧掉名单时私藏了其中一页
+    capabilities:
+      - 熟悉档案系统与条目编号
+    constraints:
+      - 一旦公开名单就暴露自己
+    current_goal: 让名字重见，同时保住自己
     rules:
       - 遇到权威：既不服从也不正面冲撞
       - 遇到弱者：多说一句
     arc_from: 守护档案
     arc_to: 成为档案本身
+
+  - id: wei
+    name: 魏
+    tier: core
+    pov: true
+    role: 退休的车间主任
+    desire: 保住当年那批工人的饭碗与体面
+    fear: 旧事被公开后会连累活着的人
+    memory: 事故当晚他签下了一份封存命令
+    worldview: 秩序比真相更能让人活下来
+    contradiction: 想被理解，却一直阻止别人知道真相
+    voice: 缓慢、四平八稳，偶尔一句锋利
+    blind_spots:
+      - 相信沉默就是保护
+    secrets:
+      - 签署了封存命令，并改动了值班表
+    capabilities:
+      - 旧部人脉广
+      - 知道当晚谁真正在场
+    constraints:
+      - 身体与声誉都在衰退
+    current_goal: 阻止林翻出那一晚
+    rules:
+      - 遇到质问：先讲别的旧事
+    arc_from: 以沉默保护他人
+    arc_to: 承认沉默也是一种伤害
+
+  - id: chen
+    name: 陈
+    tier: supporting
+    pov: true
+    role: 夜班清洁工
+    desire: 保住这份工作，不被牵进任何麻烦
+    fear: 被当作替罪者
+    memory: 那晚他见过一个不该出现的人
+    worldview: 少说少错
+    contradiction: 想说真话，又怕说出来没人信
+    voice: 短促、回避、常以反问结尾
+    blind_spots:
+      - 低估自己看见的东西的价值
+    secrets:
+      - 知道那晚有人进过控制室
+    capabilities:
+      - 各车间通行
+    constraints:
+      - 没有身份与话语权
+    current_goal: 离事故远一点
+    arc_from: 求得无事
+    arc_to: 被动地成为关键证人
+
+  - id: zhao
+    name: 赵
+    tier: supporting
+    pov: false
+    role: 工段安全调查员
+    desire: 尽快结案，维持系统运转
+    fear: 案子翻出来会暴露整套监管失效
+    memory: 上级曾授意他压低一起事故等级
+    worldview: 稳定的结论比彻底的真相更安全
+    contradiction: 明知有疑点，仍推动盖章结案
+    voice: 官方、简短、滴水不漏
+    blind_spots:
+      - 把系统稳定等同于正义
+    secrets:
+      - 上级授意压低事故等级
+    capabilities:
+      - 调阅与盖章的权力
+    constraints:
+      - 受制于上级
+    current_goal: 把事故定性为设备老化
+    arc_from: 忠于流程
+    arc_to: 流程本身成为他的困境

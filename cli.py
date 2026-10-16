@@ -76,7 +76,10 @@ jazz:
 """
 
 _DEFAULT_CHARACTERS = """characters:
-  - name: 林
+  - id: lin
+    name: 林
+    tier: core
+    pov: true
     role: 检修工程师
     desire: 查清父亲那场事故的真相
     fear: 发现父亲也是共谋，而自己正重复他
@@ -84,13 +87,22 @@ _DEFAULT_CHARACTERS = """characters:
     worldview: 任何故障都有可查明的原因
     contradiction: 相信理性，却在做决定时凭直觉
     voice: 短句，专业术语夹在日常里
+    blind_spots:
+      - 认为一切都能靠技术还原，忽略当时的人际与政治压力
+    capabilities:
+      - 熟练的检修与测量
+    constraints:
+      - 缺乏调阅密档的权限
+    current_goal: 找到父亲值夜那天被改动的记录
     rules:
       - 遇到未知：先测量，再记录，最后才允许害怕
       - 遇到危险：把情绪压进技术动作里
-      - 遇到过去：回避，用工作转移
     arc_from: 相信技术中立
     arc_to: 承认技术是人的欲望的延长
-  - name: 苏
+  - id: su
+    name: 苏
+    tier: core
+    pov: true
     role: 档案管理员
     desire: 让被抹去的名字重新出现
     fear: 自己保存的记忆也被改写
@@ -98,9 +110,85 @@ _DEFAULT_CHARACTERS = """characters:
     worldview: 记忆即权力
     contradiction: 守护真相，却依赖谎言生存
     voice: 缓慢、反问、留白
-    rules:
-      - 遇到权威：既不服从也不正面冲撞
-      - 遇到弱者：多说一句
+    blind_spots:
+      - 把记忆当作唯一真相，忽略记忆也会被权力塑造
+    secrets:
+      - 烧掉名单时私藏了其中一页
+    current_goal: 让名字重见，同时保住自己
+    arc_from: 守护档案
+    arc_to: 成为档案本身
+  - id: wei
+    name: 魏
+    tier: core
+    pov: true
+    role: 退休的车间主任
+    desire: 保住当年那批工人的饭碗与体面
+    fear: 旧事被公开后会连累活着的人
+    contradiction: 想被理解，却一直阻止别人知道真相
+    blind_spots:
+      - 相信沉默就是保护
+    secrets:
+      - 签署了封存命令，并改动了值班表
+    current_goal: 阻止林翻出那一晚
+    arc_from: 以沉默保护他人
+    arc_to: 承认沉默也是一种伤害
+  - id: chen
+    name: 陈
+    tier: supporting
+    pov: true
+    role: 夜班清洁工
+    desire: 保住这份工作，不被牵进麻烦
+    fear: 被当作替罪者
+    memory: 那晚他见过一个不该出现的人
+    worldview: 少说少错
+    contradiction: 想说真话，又怕没人信
+    blind_spots:
+      - 低估自己看见的东西的价值
+    secrets:
+      - 知道那晚有人进过控制室
+    current_goal: 离事故远一点
+  - id: zhao
+    name: 赵
+    tier: supporting
+    pov: false
+    role: 工段安全调查员
+    desire: 尽快结案，维持系统运转
+    fear: 案子翻出来会暴露监管失效
+    worldview: 稳定的结论比真相更安全
+    contradiction: 明知有疑点，仍推动盖章结案
+    blind_spots:
+      - 把系统稳定等同于正义
+    secrets:
+      - 上级授意压低事故等级
+    current_goal: 把事故定性为设备老化
+"""
+
+_DEFAULT_RELATIONSHIPS = """relationships:
+  - source_id: lin
+    target_id: su
+    type: 调查者与档案管理者
+    mutual_interest: 林需要苏保存的档案重建事故；苏需要林的行动让名字重见
+    conflict: 林要求公开原始记录，苏担心公开会暴露自己的过去
+    asymmetry: 林有调查行动力，苏握有信息
+    initial_state: 互相戒备的交易关系
+    pressure_point: 林要求查看被烧毁名单所剩的那一页
+    possible_transition: 从交易走向有限信任，或因是否公开而决裂
+  - source_id: lin
+    target_id: wei
+    type: 晚辈与前辈
+    mutual_interest: 林把魏当作父亲的旧同事；魏对林抱愧疚
+    conflict: 魏要阻止翻案，林执意追查
+    asymmetry: 魏知内情，林只有直觉
+    pressure_point: 值班表被改动的事实浮现
+    possible_transition: 魏从阻挡转为背负，或彻底沉默
+  - source_id: chen
+    target_id: zhao
+    type: 目击者与调查者
+    mutual_interest: 陈想脱身，赵想结案
+    conflict: 赵需要陈的证词支持“设备老化”，陈怕被牵连
+    asymmetry: 赵有权，陈无地位
+    pressure_point: 陈被要求签一份他没读过的证词
+    possible_transition: 陈说谎自保，或在压力下松口
 """
 
 _DEFAULT_STORY_STATE = """chapter: 0
@@ -269,13 +357,13 @@ def cmd_status(args) -> int:
         Panel(session.harmony.as_prompt(), title="叙事和声 · Harmony", border_style="blue")
     )
     table = Table(title="乐手 · Characters", header_style="bold")
-    table.add_column("名字")
-    table.add_column("角色")
-    table.add_column("欲望")
-    table.add_column("恐惧")
+    for col in ("名字", "ID", "层级", "POV", "角色", "欲望"):
+        table.add_column(col)
     for c in session.characters.values():
-        table.add_row(c.name, c.role, c.desire, c.fear)
+        table.add_row(c.name, c.effective_id, c.tier, "✓" if c.pov else "—", c.role, c.desire)
     console.print(table)
+    if session.relationships.relationships:
+        console.print(f"[dim]人物关系 {len(session.relationships.relationships)} 条[/dim]")
 
     mt = Table(title="动机 · Motifs", header_style="bold")
     mt.add_column("动机")
@@ -702,6 +790,26 @@ def cmd_evaluate(args) -> int:
     return 0
 
 
+def cmd_chars(args) -> int:
+    session = _build_session(args)
+    usage = session.character_usage()
+    table = Table(title="人物库 · Characters", header_style="bold")
+    for col in ("ID", "名字", "层级", "POV", "参与章", "欲望"):
+        table.add_column(col)
+    for row in usage:
+        c = session.characters[row["name"]]
+        table.add_row(row["id"], row["name"], row["tier"], "✓" if row["pov"] else "—",
+                      "、".join(str(n) for n in row["chapters"]) or "—", c.desire)
+    console.print(table)
+    idle = session.idle_characters()
+    if idle:
+        console.print(f"[yellow]未参与任何章节的人物：{idle}（检查是否闲置）[/yellow]")
+    if session.relationships.relationships:
+        console.print(Panel(session.relationships_brief(),
+                            title="人物关系网络 · Relationships", border_style="blue"))
+    return 0
+
+
 def cmd_motifs(args) -> int:
     session = _build_session(args)
     table = Table(title="动机追踪 · Motif Trace", header_style="bold")
@@ -858,6 +966,7 @@ def cmd_init(args) -> int:
     files = {
         "story.yaml": _DEFAULT_STORY,
         "characters.yaml": _DEFAULT_CHARACTERS,
+        "relationships.yaml": _DEFAULT_RELATIONSHIPS,
         "motifs.yaml": _DEFAULT_MOTIFS,
         "story_state.yaml": _DEFAULT_STORY_STATE,
     }
@@ -1025,6 +1134,7 @@ def build_parser() -> argparse.ArgumentParser:
     e.set_defaults(func=cmd_evaluate)
 
     sub.add_parser("motifs", help="查看动机追踪").set_defaults(func=cmd_motifs)
+    sub.add_parser("chars", help="查看人物库、使用情况与关系网络").set_defaults(func=cmd_chars)
 
     i = sub.add_parser("init", help="写入示例数据文件")
     i.add_argument("--force", action="store_true")

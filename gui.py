@@ -237,7 +237,7 @@ class App:
         self.nb.pack(fill="both", expand=True)
         self.tabs: dict[str, tk.Text] = {}
 
-        for name in ["创意候选", "全书结构", "章节卡片", "Jam", "正文", "即兴决策", "评价", "建议", "状态", "历史"]:
+        for name in ["创意候选", "全书结构", "章节卡片", "人物", "Jam", "正文", "即兴决策", "评价", "建议", "状态", "历史"]:
             frame = ttk.Frame(self.nb)
             txt = tk.Text(frame, wrap="word", state="disabled", padx=8, pady=6)
             sb = ttk.Scrollbar(frame, command=txt.yview)
@@ -320,6 +320,7 @@ class App:
             self.pov_var.set(names[0])
         self.loaded_var.set(f"人物 {len(names)} · provider={self.session.provider_name}")
         self._set_tab("状态", self._status_text())
+        self._set_tab("人物", self._characters_text())
         self._populate_tree()
 
     # -- async runner (snapshot-first, single-flight, disable buttons) ------
@@ -436,6 +437,7 @@ class App:
         self._populate_tree(book)
         self._set_tab("全书结构", self._structure_text(book))
         self._set_tab("评价", self._structure_report_text(report))
+        self._set_tab("人物", self._characters_text())
         self.nb.select(self.tree_tab_index)
 
     def on_validate(self) -> None:
@@ -918,6 +920,33 @@ class App:
             lines.append(f"   即兴方向: {sk.improv_direction}")
             lines.append(f"   信息边界: {sk.info_boundary}")
             lines.append(f"   退出点: {sk.exit_point}")
+        return "\n".join(lines)
+
+    def _characters_text(self) -> str:
+        s = self.session
+        if s is None:
+            return "(未加载)"
+        lines = []
+        for row in s.character_usage():
+            c = s.characters[row["name"]]
+            lines.append(f"[{row['tier']}] {row['name']} ({row['id']})　POV={'✓' if row['pov'] else '—'}")
+            for label, value in (("欲望", c.desire), ("恐惧", c.fear), ("当前目标", c.current_goal)):
+                if value:
+                    lines.append(f"    {label}：{value}")
+            if c.blind_spots:
+                lines.append("    盲点：" + "、".join(c.blind_spots))
+            if c.secrets:
+                lines.append("    秘密：" + "、".join(c.secrets))
+            lines.append(f"    参与章：{'、'.join(map(str, row['chapters'])) or '—'}")
+            lines.append("")
+        rb = s.relationships_brief()
+        if rb:
+            lines.append("【人物关系网络】")
+            lines.append(rb)
+        idle = s.idle_characters()
+        if idle:
+            lines.append("")
+            lines.append(f"⚠ 未参与任何章节的人物：{idle}")
         return "\n".join(lines)
 
     def _status_text(self) -> str:

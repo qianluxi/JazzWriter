@@ -299,11 +299,27 @@ openai 与 opencode 两个后端都可用；不设任何 Key 时仍可用 `mock`
   结局回应，给出依据与章号）；界面**问题清单优先于分数**。
 - **创意过期保护**：方案记录前提指纹，前提改动后 `ideas_stale` 会提示方案过期。
 
+## 人物与关系网络（V2.6）
+
+人物数量**不设上限**，按层级管理，示例给了 5 人（3 核心 + 2 重要配角）：
+
+- `Character` 现有稳定 `id`、`tier`（core/supporting/functional）、`pov`（是否可作视角），
+  以及叙事驱动字段：`blind_spots`（认知局限）、`secrets`、`capabilities`/`constraints`（能做/受限）、`current_goal`。
+- `data/relationships.yaml` 定义**人物关系网络**：`mutual_interest / conflict / asymmetry / initial_state / pressure_point / possible_transition`——人和人为什么必须合作、在哪冲突、什么事件会改变关系。
+- 核心人物与关系会**注入 `BookPlanner`**（故事创意/全书蓝图），不再只是姓名列表。
+- 每章新增人物参与记录：`pov_character_id / characters_involved / character_decisions / knowledge_changes / relationship_changes`。
+- 校验器新增**人物使用检查**：登记但全程未参与任何章节的人物会被提示。
+- `python main.py chars` 查看人物库、使用情况与关系网络（GUI 有「人物」标签页）。
+
+> 注意：不同人物层级数量只是设计建议——短篇可用 2–3 人，群像可更多。
+
 ## 数据文件（乐谱）
 
 - `data/story.yaml` — 主题旋律 + 叙事和声 + 即兴参数
-- `data/characters.yaml` — 独奏者
-- `data/motifs.yaml` — 动机及其意义演变（生成后自动更新）
+- `data/characters.yaml` — 人物库（id/层级/视角 + 叙事驱动字段）
+- `data/relationships.yaml` — 人物关系网络
+- `data/motifs.yaml` — 意象定义（运行时意义演变写入 `motif_state.yaml`）
+- `data/story_state.yaml` — 故事圣经（事实/认知/线索）
 
 `python main.py init --force` 可重新写入示例乐谱。
 
@@ -338,7 +354,7 @@ output/
   chapters/      章节正文(.md)     runs/  完整运行记录(.json)
   advice_history.jsonl  参数建议与变更记录
 data/
-  story.yaml characters.yaml motifs.yaml story_state.yaml [jazz_state.yaml]
+  story.yaml characters.yaml relationships.yaml motifs.yaml story_state.yaml [jazz_state.yaml]
 ```
 
 ## 设计原则
@@ -371,6 +387,7 @@ data/
 - V0.7 ✅ Jam Session：Director + Soloist + Observer + Editor 顺序合奏（Editor 候选打分排序）。
 - **V2.3 ✅ 记忆与偏离检测 + 故事板导出（动机时间线 / 人物弧线 / 伏笔面板）**。
 - **V2.4 ✅ 重新即兴候选/采纳 + 硬约束注入规划 + 分阶段严格章数校验 + 全书梗概 + 两层校验 + 创意过期保护**。
+- **V2.6 ✅ 人物与关系网络**：人物 id/层级/可选 POV + 叙事驱动字段（盲点/秘密/能力/限制/当前目标）；`relationships.yaml` 关系网络；核心人物与关系注入规划器；章节人物参与记录；人物使用检查 + `chars` 命令 + GUI「人物」页。
 - **V2.5 ✅ 质量门禁回归测试**：结构校验补章号/缺章/卷内顺序检查；`SingleFlight` 单任务守卫；端到端门禁
   （前提→多方向→完整结构→改中段章→准确影响范围 + 锁定保护）。共 52 项测试。
 - V1.0 ◑ 轻量语义记忆与偏离检测已实现（词典向量 + 可选 embedding）；剩余：真正的向量库与交互式可视化编辑器。

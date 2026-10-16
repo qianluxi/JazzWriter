@@ -14,21 +14,61 @@ from pydantic import Field
 from core.base import Model
 
 
+TIERS = ("core", "supporting", "functional")
+
+
 class Character(Model):
     name: str
+    id: str = ""                 # stable id (preferred over name; names may change)
     role: str = ""
+    tier: str = "core"           # core | supporting | functional
+    pov: bool = True             # eligible as a viewpoint character
     desire: str = ""
     fear: str = ""
     memory: str = ""
     worldview: str = ""
     contradiction: str = ""
     voice: str = ""
+    # -- narrative-driver attributes (V2.6) --
+    blind_spots: List[str] = Field(default_factory=list)   # 认知局限：会在何处误判
+    secrets: List[str] = Field(default_factory=list)       # 隐瞒之事
+    capabilities: List[str] = Field(default_factory=list)  # 能做什么
+    constraints: List[str] = Field(default_factory=list)   # 做不到/受限
+    current_goal: str = ""                                 # 当下短期目标
     # "when X -> do Y" heuristics that drive the solo
     rules: List[str] = Field(default_factory=list)
     # arc: from -> to (e.g. 相信技术 -> 怀疑技术)
     arc_from: str = ""
     arc_to: str = ""
     aliases: List[str] = Field(default_factory=list)
+
+    @property
+    def effective_id(self) -> str:
+        """Stable identifier used across plans (falls back to the name)."""
+        return self.id or self.name
+
+    def brief(self) -> str:
+        """Compact narrative-driver summary for structure planning."""
+        parts = [f"{self.name}({self.effective_id},{self.tier})"]
+        if self.role:
+            parts.append(f"角色={self.role}")
+        if self.desire:
+            parts.append(f"欲望={self.desire}")
+        if self.fear:
+            parts.append(f"恐惧={self.fear}")
+        if self.blind_spots:
+            parts.append("盲点=" + "、".join(self.blind_spots))
+        if self.contradiction:
+            parts.append(f"矛盾={self.contradiction}")
+        if self.capabilities:
+            parts.append("能力=" + "、".join(self.capabilities))
+        if self.constraints:
+            parts.append("限制=" + "、".join(self.constraints))
+        if self.secrets:
+            parts.append("秘密=" + "、".join(self.secrets))
+        if self.arc_from or self.arc_to:
+            parts.append(f"弧={self.arc_from}→{self.arc_to}")
+        return "；".join(parts)
 
     def react(self, event: str) -> str:
         """Return the character's improvisation brief for a given event."""

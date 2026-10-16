@@ -20,6 +20,7 @@ from core.book_plan import BookPlan
 from core.character import Character
 from core.chapter_plan import ChapterPlan
 from core.harmony import Harmony
+from core.relationship import RelationshipMap
 from core.story_idea import StoryIdea
 from core.story_state import StoryState
 from core.theme import Theme
@@ -69,6 +70,7 @@ class BookPlanner:
         llm=None,
         harmony: Optional[Harmony] = None,
         story_state: Optional[StoryState] = None,
+        relationships: Optional[RelationshipMap] = None,
     ) -> None:
         self.theme = theme
         self.characters = list(characters)
@@ -76,6 +78,17 @@ class BookPlanner:
         self.llm = llm
         self.harmony = harmony
         self.story_state = story_state
+        self.relationships = relationships or RelationshipMap()
+
+    def _cast_ids(self) -> List[str]:
+        return [c.effective_id for c in self.characters] or ["protagonist"]
+
+    def _cast_brief(self) -> str:
+        core = [c for c in self.characters if c.tier in ("core", "supporting")] or self.characters
+        return "\n".join(f"- {c.brief()}" for c in core)
+
+    def _relationships_brief(self) -> str:
+        return self.relationships.brief(self._cast_ids())
 
     # -- constraints (world rules + story state) ----------------------------
     def constraints(self) -> List[str]:
@@ -243,6 +256,7 @@ class BookPlanner:
             resolution=idea.ending_direction,
             main_conflict=f"围绕「{idea.causal_mechanism[:20]}」；{idea.character_relation[:16]}",
             cast=self._cast(),
+            cast_ids=self._cast_ids(),
             key_turns=turns,
             ending=idea.ending_direction,
             structure_template=template,
@@ -256,7 +270,8 @@ class BookPlanner:
         llm_book = self._book_from_llm(book, premise, idea, chapters, template)
         if llm_book is not None:
             return llm_book
-        book = OutlineExpander(self.theme, book.cast).expand(
+        book = OutlineExpander(self.theme, self.characters,
+                               relationships=self.relationships).expand(
             book, chapters, template=template,
             seed=seed if seed is not None else (self.params.seed or 0),
         )
@@ -279,7 +294,8 @@ class BookPlanner:
         prompt = (
             f"故事前提：{premise}\n"
             f"主题命题：{self.theme.question or self.theme.title}\n"
-            f"人物：{cast}\n"
+            f"人物（叙事驱动，注意其欲望/恐惧/盲点/能力差异是否产生不同选择）：\n{self._cast_brief()}\n"
+            f"人物关系网络：\n{self._relationships_brief() or '（未定义）'}\n"
             f"硬约束（所有方案都必须遵守，不得与已确定事实/世界规则冲突，不得提前揭露秘密）：{self._constraints_text()}\n"
             f"故事方向差异度 idea_divergence={self.params.idea_divergence}，因果变化 causal_variation={self.params.causal_variation}\n\n"
             f"请给出 {count} 个**实质不同**的故事方案。每个方案必须改变「因果机制／真相性质／人物关系走向／结局方向」中的至少一项，"
@@ -354,7 +370,8 @@ class BookPlanner:
             f"故事前提：{premise}\n"
             f"选定方案：因果={idea.causal_mechanism}；真相={idea.truth_nature}；"
             f"关系={idea.character_relation}；结局={idea.ending_direction}\n"
-            f"人物：{'、'.join(self._cast())}\n"
+            f"人物（叙事驱动）：\n{self._cast_brief()}\n"
+            f"人物关系网络：\n{self._relationships_brief() or '（未定义）'}\n"
             f"结构模板：{TEMPLATE_LABELS.get(template, template)}（{template}）；章节总数={chapters}\n"
             f"硬约束（必须遵守）：{self._constraints_text()}\n\n"
             "第一步：只输出全书蓝图（不要逐章卡片）。各卷 chapter_count 之和必须正好等于章节总数。"

@@ -5,6 +5,7 @@ from core.character import Character
 from core.harmony import Harmony
 from core.motif import Motif, MotifLibrary
 from core.improviser import Improviser, HarmonyContext
+from core.relationship import Relationship, RelationshipMap
 
 __all__ = [
     "Theme",
@@ -14,4 +15,6 @@ __all__ = [
     "MotifLibrary",
     "Improviser",
     "HarmonyContext",
+    "Relationship",
+    "RelationshipMap",
 ]
