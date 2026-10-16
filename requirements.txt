@@ -7,3 +7,11 @@ rich>=13.0
 #
 # opencode backend needs NO extra dependency: it talks to a local
 # `opencode serve` server over HTTP using only the standard library.
+#
+# Optional: semantic evaluation backend (Embedding / Hybrid eval modes).
+# Requires a working PyTorch. Version pins depend on your torch:
+#   - torch >= 2.6 : pip install sentence-transformers
+#   - torch <  2.6 : pip install sentence-transformers==3.0.1 transformers==4.44.2 \
+#                                   huggingface-hub==0.24.6 tokenizers==0.19.1
+# The first use downloads a small model (~470MB); offline it degrades to lexical.
+# Override the model with NJE_EMBED_MODEL.
