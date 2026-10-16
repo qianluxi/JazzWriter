@@ -1,228 +1,174 @@
-# JazzWriter（小说爵士引擎）`v2.4`
+# JazzWriter（小说爵士引擎）`v2.11`
 
 > **长篇小说结构即兴引擎 / Human-AI Improvisational Writing System。**
-> 主要产物不是小说正文，而是**故事方案、全书梗概、分卷结构与逐章摘要**。
+> 主要产物不是小说正文，而是**故事方案、全书梗概、分卷结构、逐章摘要卡片，以及人物与关系网络**。
+>
+> 作者提供主题与世界 → AI 提供即兴变化 → 作者挑选与打磨 → 系统维持长期一致性。
+> 更接近爵士合奏与即兴戏剧，而不是"AI 自动写小说"。
+
+---
+
+## 目录
+- [工作流（结构优先）](#工作流结构优先)
+- [安装与启动](#安装与启动)
+- [快速上手（CLI）](#快速上手cli)
+- [图形界面](#图形界面)
+- [命令速查](#命令速查)
+- [核心概念：乐谱 · 结构 · 人物关系](#核心概念乐谱--结构--人物关系)
+- [受控偏移（即兴层）](#受控偏移即兴层)
+- [结构即兴引擎](#结构即兴引擎)
+- [记忆 · 偏离检测 · 可视化](#记忆--偏离检测--可视化)
+- [Jam Session 合奏](#jam-session-合奏)
+- [接入真实模型](#接入真实模型)
+- [数据文件（乐谱）](#数据文件乐谱)
+- [架构](#架构)
+- [设计原则](#设计原则)
+- [测试](#测试)
+- [版本历史](#版本历史)
+
+---
 
 ## 工作流（结构优先）
 
 1. **输入故事前提**
-2. **生成并比较多个创意方案**（在"因果机制/真相/关系/结局/主题解释"上实质不同）
+2. **生成并比较多个创意方案**（在「因果机制 / 信息结构·真相 / 人物关系 / 结局 / 主题解释」上实质不同）
 3. **选择或融合**方案
 4. **生成完整故事梗概与分卷规划**（synopsis / 开端 / 触发事件 / 关键转折 / 高潮 / 结局处理）
-5. **展开、编辑、锁定**章节摘要卡片（可字段级锁定）
-6. **校验全书**（结构硬校验 + 叙事审阅，问题优先于分数）
+5. **展开、编辑、锁定**章节摘要卡片（支持字段级锁定）
+6. **校验全书**（结构硬校验 + 叙事审阅，**问题优先于分数**）
 7. **按需局部重新即兴**（先出候选，作者采纳后才写回；锁定内容不被覆盖）
 8. **最后才进入可选的正文试写**
 
 > ⚠️ **mock 与真实模型**：默认 `mock` 是**离线演示**，只用于验证流程（章节卡片明显模板化）。
-> 结构创意与正文质量主要依赖真实模型：`--provider opencode`（复用你已连接的模型）或
-> `--provider openai`。离线生成的结构会明确标记为 `offline_template`，不会伪装成模型创作。
+> 结构与正文质量主要依赖真实模型：`--provider opencode`（复用你已连接的模型）或 `--provider openai`。
+> 离线生成的结构会被明确标记为 `offline_template`，不会伪装成模型创作。
 
-设计目标不变：**可控的创造性**——在主题、世界规则、人物认知与既有事实的约束下，
-探索"这个故事还能怎样成立"。
+---
 
-## 映射关系
-
-| 爵士 | 本系统 |
-| --- | --- |
-| Head / Theme 主题旋律 | `Theme` 核心命题、情绪、象征 |
-| Chord changes 和声 | `Harmony` 世界硬约束、禁忌、情绪进行 |
-| Soloist 独奏者 | `Character` 欲望/恐惧/世界观/即兴规则 |
-| Motif 动机 | `Motif` 反复出现但意义演变 |
-| Comping / 转调 | `ImprovisationScore` 受控偏移（随机、意外、节奏、独奏) |
-| Take 录音 | 一次生成的多版本章节 |
-| Listen-back 回听 | `Evaluator` + `feedback/Conductor` 评价并重调乐谱 |
-
-> **即兴 ≠ 随机。** 本系统实现的是**约束下的高创造性偏移（Controlled Divergence）**：
-> 在既定的主题与和声里，决定一次演奏"能走多远、往哪个方向走"。
-
-## 安装
+## 安装与启动
 
 ```powershell
 pip install -r requirements.txt
+python main.py --help          # 命令行
+python gui.py                  # 图形界面（或双击 JazzWriter.bat）
 ```
 
-无需任何 API Key 即可运行（内置离线 `mock` provider，用于打通流程）。
+无需任何 API Key 即可跑通流程（内置离线 `mock`）。仅 GUI 使用标准库 Tkinter，无需额外安装。
 
-## 图形界面（推荐给非开发者）
+---
 
-```powershell
-python gui.py
-```
-
-或直接双击根目录的 **`JazzWriter.bat`**。界面左侧填场景、选模式/人物/风格、调即兴参数，
-点「▶ 演奏一章」；右侧标签页分别显示 **正文 / 即兴决策(Cue) / 评价 / 建议 / 状态 / 历史**。
-另有「多版本 · 探索路径」「下一章场景建议」。仅用标准库 Tkinter，无需额外安装。
-
-**结构工作台**：左侧「① 结构即兴」——「生成创意方案」→「融合所选两个方案」/ 选「采纳方案#」→
-「采纳并展开全书结构」；右侧有「创意候选 / 全书结构 / 结构树 / 章节卡片」标签。
-在「结构树」选中一章后，「章节卡片」可直接编辑字段并点「保存章节卡片编辑」；
-「重新即兴选中章（可选范围）」会弹出勾选框决定重生成哪些后续章节（锁定章不重生成）。
-「② 局部演练」里的「按结构渲染正文」才会生成正文。
-所有生成都在**主线程先快照参数、后台线程执行、期间按钮禁用**，避免并发冲突。
-
-## 使用（结构优先）
+## 快速上手（CLI）
 
 ```powershell
-# 1) 从一个前提发散出若干「实质不同」的故事方案
+# 1) 从一个前提发散出若干「实质不同」的故事方案（五维对照）
 python main.py outline "一场技术事故改变了一个家庭" --branches 3 --seed 1
 
 # 2) 采纳某个方案，展开全书结构（分卷 + 逐章摘要卡片）
 python main.py outline "一场技术事故改变了一个家庭" --build --pick 2 --chapters 12 --template mystery
 
-# 3) 结构校验（六维 + 具体问题）／ 锁定 / 重新即兴 / 导出
-python main.py outline --validate
-python main.py outline --lock 3
-python main.py outline --reimprovise 5                 # 生成第5章候选（不覆盖原卡片）
-python main.py outline --reimprovise 5 --adopt 1       # 采纳第1个候选并写回
-python main.py outline --reimprovise 5 --adopt 1 --regen all   # 采纳并重生成后续章节
-python main.py outline --export            # → output/book_outline.md
-
-# 融合两个故事方案（取 A 的因果/关系、B 的真相/结局，形成新的机制）
+# 3) 融合两个方案（并显示每个维度取自 A 还是 B）
 python main.py outline "一场技术事故改变了一个家庭" --fuse 1 2
 
-# 编辑某章卡片：准备一个「字段：值」文本文件再导入
-python main.py outline --edit 3 --file card.txt
-
-# 字段级锁定：重生成时保留该字段
+# 4) 校验 / 锁定 / 重新即兴（候选 → 采纳）/ 导出
+python main.py outline --validate
+python main.py outline --lock 3
 python main.py outline --lock-field 3 conflict
+python main.py outline --reimprovise 5                 # 生成候选（不覆盖）
+python main.py outline --reimprovise 5 --adopt 1 --regen all   # 采纳并重生成后续
+python main.py outline --export            # → output/book_outline.md
 
-# 顺序合奏：导演 → 独奏 → 观察 → 编辑（--render 用提案渲染正文）
-python main.py jam "深夜。检修井底，阀门自己转动了。" --pov 林 --render
+# 5) 编辑章节卡片（简表字段 / 完整 JSON）
+python main.py outline --edit 3 --file card.txt
+python main.py outline --edit-json 3 --file card.json
 
-# 偏离检测 + 导出故事板（动机演变时间线 / 人物弧线 / 伏笔面板；--open 打开 HTML）
-python main.py report --open
-
-# 4) 按结构渲染正文（可选局部演练）
+# 6) 按结构渲染正文（可选局部演练）
 python main.py book --from-plan --pov 林 --no-save
 ```
 
-结构模板：`linear_causality | mystery | multi_pov | ensemble | nonlinear_puzzle | custom`。
-结构参数：`--idea-divergence --causal-variation --character-agency --motif-transformation
---revelation-delay --branch-count --continuity-strength`。
+结构模板：`linear_causality | mystery | multi_pov | ensemble | nonlinear_puzzle | custom`
+结构参数：`--idea-divergence --causal-variation --character-agency --motif-transformation --revelation-delay --branch-count --continuity-strength`
 
-### 其它命令
+---
 
-```powershell
-# 查看主题 / 人物 / 和声 / 动机
-python main.py status
+## 图形界面
 
-# 即兴演奏一章（离线）
-python main.py play "冬夜，学校食堂，一台报废的蒸汽机仍在运行" --pov 林 --mode classic_jazz --style 冷静观察
+`python gui.py`（或双击 `JazzWriter.bat`）。顶部选「模型」（mock/opencode/openai）与「评价」（lexical/embedding/hybrid）。
 
-# 自由爵士模式 + 固定随机种子（同一"乐谱"可复现，换模式则会受控地偏移）
-python main.py play "废弃工厂。林推开门。" --pov 林 --mode free_jazz --seed 42 --chapter 5 --total 12
+- **左侧**：场景/章节摘要框；模式、视角、结构模板、章数、采纳/融合编号；结构参数与文本参数。
+- **① 结构即兴**：生成创意 → 融合所选两个方案 / 采纳并展开 → 校验 / 保存卡片编辑 / 保存 JSON / **编辑人物·关系变化（表单）** / 重新即兴（可选范围） / 锁定 / 导出结构 / 偏离检测 / 导出故事板。
+- **② 局部演练**：按结构渲染正文 / 试写一章 / 多版本探索 / 下一章场景建议 / Jam Session。
+- **右侧标签**：创意候选 · 全书结构 · 结构树 · 章节卡片 · 卡片JSON · 人物 · Jam · 正文 · 即兴决策 · 评价 · 建议 · 状态 · 历史。
 
-# 自定义乐谱参数（覆盖 story.yaml）
-python main.py play "..." --creativity 0.8 --surprise-level 0.6 --style-distance 0.7
+所有生成都在**主线程先快照参数、后台线程执行、期间按钮禁用**（`SingleFlight`），避免并发冲突。
 
-# 同一场景生成多个版本（同一和声，不同 Solo 色彩）
-python main.py takes "同上" --mode bebop --styles 冷静观察 象征增强 心理深入
+---
 
-# 模式B：同一主题多次独立即兴（各 Take 走不同叙事路径）
-python main.py takes "同上" --mode bebop --seed 7 --explore --styles 象征增强 心理深入
+## 命令速查
 
-# 逐章试写（每行一章，自动衔接上文）；场景不足会报错，不再循环复用
-python main.py book "第1章场景" "第2章场景" "第3章场景" --pov 林 --mode bebop --seed 100
-python main.py book --from-plan                # 用 outline 生成的结构渲染正文
-python main.py book --file outline.txt --chapters 3 --style-cycle 冷峻 抒情 象征增强
+| 命令 | 作用 |
+| --- | --- |
+| `status` | 查看主题 / 人物 / 和声 / 动机 / 故事状态 |
+| `chars` | 人物库、使用情况、关系网络与关系变化 |
+| `outline "前提" --branches 3` | 发散故事方案（五维对照） |
+| `outline … --build --pick N --chapters M --template T` | 采纳并展开全书结构 |
+| `outline … --fuse A B` | 融合两个方案（对照取自 A/B） |
+| `outline --validate` / `--lock N` / `--lock-field N FIELD` | 校验 / 锁定章 / 锁定字段 |
+| `outline --reimprovise N [--adopt K] [--regen …]` | 候选 → 采纳 → 范围重生成 |
+| `outline --edit N --file card.txt` / `--edit-json N --file card.json` | 编辑章节卡片 |
+| `outline --export` | 导出结构 Markdown |
+| `book --from-plan` / `book "场景1" "场景2" …` | 按结构渲染 / 逐章试写（不再循环复用场景） |
+| `play …` / `takes … [--explore]` | 单章即兴 / 多版本（同和声或独立路径） |
+| `jam "场景" [--rounds N] [--render]` | 四角色合奏（多轮辩论），可渲染正文 |
+| `plan [--count N]` | 下一章场景骨架（有模型时由模型生成） |
+| `report [--open]` | 偏离检测 + 导出**交互式**故事板并打开 |
+| `memory [--rebuild] [--query "…"]` | 向量记忆：重建 / 语义检索章节 |
+| `history [--chapter N] [--metric M] [--limit K]` | 运行历史与趋势 |
+| `advice [--apply]` | 查看 / 应用下一轮参数建议 |
+| `evaluate <file> [--eval-mode …]` | 评价已保存章节 |
+| `motifs` / `jazz` / `styles` / `init` | 动机 / 乐谱参数 / 模式与色彩 / 写入示例乐谱 |
 
-# 生成后给出下一章场景骨架（交互式选择，不自动续写）
-python main.py play "..." --suggest
-python main.py plan --count 3
+管道传入场景：`"雨夜。档案馆停电。" | python main.py play --pov 苏`
 
-# 打印实际调用模型的完整 prompt（与真实调用一致）
-python main.py play "..." --show-prompt
+---
 
-# 回听评价一个已保存的章节（可切换评价方式）
-python main.py evaluate output/chapters/ch001_take01_冷静观察.md --eval-mode lexical
+## 核心概念：乐谱 · 结构 · 人物关系
 
-# 查看动机的意义演变轨迹
-python main.py motifs
+把设定想成乐队的"乐谱"，AI 是与你合奏的乐手。
 
-# 查看演奏历史与趋势统计
-python main.py history
-python main.py history --chapter 5 --metric novelty --limit 20
+| 爵士 | 本系统 |
+| --- | --- |
+| Head / Theme 主题旋律 | `Theme` 核心命题、情绪、象征 |
+| Chord changes 和声 | `Harmony` 世界硬约束、禁忌、情绪进行 |
+| Soloist 独奏者 | `Character` 欲望/恐惧/盲点/秘密/能力/限制/当前目标 |
+| Motif 动机 | `Motif` 反复出现但意义演变 |
+| Comping / 转调 | `ImprovisationScore` 受控偏移（随机、意外、节奏、独奏） |
+| Take 录音 | 一次生成的多版本章节 |
+| Listen-back 回听 | `Evaluator` + `feedback/Conductor` 评价并重调乐谱 |
 
-# 查看并显式应用下一轮参数建议（默认不自动改默认乐谱）
-python main.py advice
-python main.py advice --apply
+**结构三层**：`BookPlan`（全书梗概/命题/冲突/转折/结局/分卷）→ `VolumePlan`（分卷目标/高潮/阶段结果）→ `ChapterPlan`（功能/POV/起因/行动/冲突/结果/信息变化/人物变化/线索/意象/前后钩子 + 人物参与）。
 
-# 查看即兴参数与三种模式预设
-python main.py jazz
+**人物与关系**（示例给了 5 人：3 核心 + 2 重要配角）：
+- `Character` 有稳定 `id`、`tier`（core/supporting/functional）、`pov`（能否作视角），以及叙事驱动字段 `blind_spots / secrets / capabilities / constraints / current_goal`。
+- `relationships.yaml` 定义关系网络：`mutual_interest / conflict / asymmetry / initial_state / pressure_point / possible_transition`。
+- 每章记录：`pov_character_id / characters_involved / character_decisions / knowledge_changes / relationship_changes`（类型化，可追溯 motivation/source/cause）。
 
-# 查看可用即兴模式与 Solo 色彩
-python main.py styles
+---
 
-# 无参数运行：离线演示
-python main.py
-```
+## 受控偏移（即兴层）
 
-运行回归测试（确定性 / 记录完整性 / 连续性 / 反馈边界）：
-
-```powershell
-python -m unittest discover -s tests
-```
-
-通过管道传入场景：
-
-```powershell
-"雨夜。档案馆停电。" | python main.py play --pov 苏
-```
-
-## 接入真实 LLM
-
-任何 OpenAI 兼容端点（OpenAI / DeepSeek / Qwen / vLLM / Ollama）：
-
-```powershell
-pip install openai
-$env:OPENAI_API_KEY = "sk-..."
-$env:NJE_BASE_URL   = "https://api.deepseek.com/v1"
-$env:NJE_MODEL      = "deepseek-chat"
-python main.py play "..." --provider openai
-```
-
-或用环境变量 `NJE_PROVIDER=openai` 设为默认。
-
-### 用 opencode 自己的模型（opencode serve）
-
-JazzWriter 可以**直接复用 opencode 已连接的大模型**（OpenCode Zen / Go，或你 `/connect` 过的任意 provider），
-无需单独配置 API Key——它通过本地 opencode server 调用：
-
-```powershell
-# 1) 另开一个终端，启动 opencode 服务器（默认端口 4096）
-opencode serve --port 4096
-
-# 2) 在 JazzWriter 里选择 opencode 后端
-python main.py play "..." --provider opencode
-#   或 GUI 顶部「模型」下拉选 opencode
-```
-
-可选环境变量：
-
-```powershell
-$env:NJE_OPENCODE_URL = "http://127.0.0.1:4096"      # 默认值
-$env:NJE_OPENCODE_MODEL = "anthropic/claude-sonnet-4" # 不设则用服务器默认模型
-$env:OPENCODE_SERVER_PASSWORD = "..."                 # 若服务器开了 basic auth
-```
-
-openai 与 opencode 两个后端都可用；不设任何 Key 时仍可用 `mock` 离线跑通流程。
-
-## 即兴层 · Controlled Divergence
-
-世界设定 → 人物 → 剧情结构 → **【即兴层】** → 文本。即兴层在每次演奏前发一张
-`Cue`（乐谱），决定本次"能走多远、往哪走"：
+> **即兴 ≠ 随机。** 实现的是**约束下的高创造性偏移（Controlled Divergence）**。
 
 | 模块 | 作用 |
 | --- | --- |
-| `improvisation_score.py` | 指挥台：读参数、发 Cue、决定偏移程度（核心） |
+| `improvisation_score.py` | 指挥台：读参数、发 `Cue`、决定偏移程度（核心） |
 | `randomizer.py` | 随机种子 `JazzSeed`：情绪 / 视角 / 象征 / 切入角度 |
+| `operator_engine.py` | 8 种叙事操作：注意力转移 / 感官替换 / 认知偏差 / 信息错位 / 意象变奏 / 情绪反差 / 行动偏航 / 因果重审 |
 | `motif_engine.py` | 动机变奏：literal → symbolic → psychological → philosophical |
-| `surprise_engine.py` | 受控意外：隐藏关系 / 错误记忆 / 反向因果 / 未知观察者 / 时间错位 / 物件背叛 |
+| `surprise_engine.py` | 受控意外（尊重故事状态）：隐藏关系 / 错误记忆 / 反向因果 / 未知观察者 / 时间错位 / 物件背叛 |
 | `rhythm_engine.py` | 叙事节奏：adagio / swing / bebop / ballad / free |
-| `solo_engine.py` | 人物 Solo：每个角色有自己的"乐器"、关注点、盲点、记忆滤镜 |
+| `solo_engine.py` | 人物 Solo：每个角色的"乐器"、关注点、盲点、记忆滤镜 |
 
-**乐谱参数**（`data/story.yaml` 的 `jazz:` 段，可用命令行覆盖）：
+乐谱参数（`story.yaml` 的 `jazz:` 段，可命令行覆盖）：
 
 | 参数 | 作用 | classic_jazz | bebop | free_jazz |
 | --- | --- | --- | --- | --- |
@@ -233,100 +179,75 @@ openai 与 opencode 两个后端都可用；不设任何 Key 时仍可用 `mock`
 | surprise_level | 剧情转折 | 0.15 | 0.50 | 0.70 |
 | style_distance | 语言变化 | 0.15 | 0.45 | 0.80 |
 
-### 叙事操作 · ImprovisationOperator（V0.5 核心）
+结构参数：`idea_divergence / causal_variation / character_agency / motif_transformation / revelation_delay / branch_count / continuity_strength`。
 
-即兴不是随机加情节，而是选择一种**叙事操作**：注意力转移 / 感官替换 / 认知偏差 /
-信息错位 / 意象变奏 / 情绪反差 / 行动偏航 / 因果重审。每轮按参数随机挑选 1–3 个组合，
-并附带硬约束（人物动机一致、不得篡改已确定事实、不得提前揭露）。见
-`improvisation/operator_engine.py`。
+---
 
-### 故事状态与连续性 · StoryState（V0.6 基础）
-
-`data/story_state.yaml` 区分五种“真”：**已确定事实 / 怀疑 / 秘密 / 未决线索 /
-候选创意**。`SurpriseEngine` 会读取故事状态：过滤不适用的意外、为意外绑定具体的
-事实/线索/意象、并保证**已确定事实不可被随机覆盖**。`Evaluator` 会检测“提前揭露”
-（连续性问题）并单独报告，而不计入总分。
-
-### 回听 → 重调（`feedback/`）
-
-`Conductor` 读评价给出下一轮参数建议：创新太低则提高 `randomness`，偏离主题则降低
-自由度。建议写入 `output/advice_history.jsonl`，默认**只待审核**；`advice --apply`
-才把结果写入 `data/jazz_state.yaml`（运行时状态），不会静默改动作者在 `story.yaml`
-里的默认乐谱。
-
-### 可观测性与可复现（V0.4.1）
-
-每次 `play` 保存一份完整运行记录到 `output/runs/<run_id>.json`，包含
-`cue / cue_directives / prompt / context / take / evaluation / conductor_advice`。
-固定随机种子时即兴决策可复现（模型采样另有随机性）；`--show-prompt` 打印的就是
-实际调用模型的同一份 prompt。`history` 命令基于这些记录做排序、筛选与趋势统计。
-
-## 结构即兴引擎（V2.0）
-
-以 `BookPlan` 为中心的创作流程（正文 `Take` 仍保留，用于局部演练）：
+## 结构即兴引擎
 
 ```
 前提
- └─ StoryIdea × N   ── engine/book_planner.py   故事级即兴（发散实质不同的故事方案）
-     └─ BookPlan    ── engine/outline_expander.py 逐级展开为分卷 + ChapterPlan 章节卡片
-         └─ 校验    ── engine/plot_validator.py / structure_evaluator.py（六维 + 具体问题）
-             └─ 局部重新即兴（受锁定保护）
+ └─ StoryIdea × N      engine/book_planner.py      故事级发散（五维对照 / 融合）
+     └─ BookPlan       engine/outline_expander.py  逐级展开为分卷 + ChapterPlan
+         └─ 校验       engine/plot_validator.py · structure_evaluator.py（硬校验 + 叙事审阅）
+             └─ 局部重新即兴  engine/reimproviser.py（候选 → 采纳；锁定保护）
 ```
 
-- `core/story_idea.py · volume_plan.py · chapter_plan.py · book_plan.py` — 结构数据模型（含 `status/locked` 与下游影响追踪）。
-- 结构参数（`data/story.yaml` 或命令行）：`idea_divergence / causal_variation / character_agency /
-  motif_transformation / revelation_delay / branch_count / continuity_strength`。
-- 有真实模型时（opencode / openai）由模型产出结构与章节卡片；否则用**确定性生成器**离线跑通（可测试、可复现）。
-- 结构评价独立于文本评价；留白与开放结局不会被机械扣分。
-- **POV 分布**：`multi_pov` 平衡交错并避免视角长跑；`ensemble` 分配连续视角弧；关键转折章（高潮/收束/汇合…）收束到主角视角。
-- **字段级锁定**：`ChapterPlan.locked_fields`——重生成时保留被锁字段；整章锁定时永不改写。
-- **Jam Session（V0.7）**：`jam_session/` 顺序合奏——Director（方向与限制）→ Soloist（人物驱动的行动）→
-  Observer（非中心细节／边缘视角）→ Editor（**给候选打分排序**、剔除矛盾与提前揭露、整合提案）。
-  角色任务不同，不各自重写正文；Editor 只给**提案**，不自动升级为正式设定。`python main.py jam "..."`。
-- **记忆与偏离检测（V1.0）**：`engine/memory.py`——轻量语义记忆（默认词典向量，可选 embedding）：
-  相似章节检索、**近重复检测**、**主题漂移**、人物弧缺失、意象未使用、结构卡片提前揭露。
-- **故事板导出**：`engine/report.py` 生成 `output/story_report.md` 与自包含 `output/story_report.html`
-  （动机演变时间线 / 人物弧线图 / 线索伏笔面板 / 偏离检测）。`python main.py report --open`。
-- **全书梗概**：`BookPlan.synopsis / opening_state / inciting_incident / central_turn / climax / resolution`——
-  不看卡片也能理解故事为何这样发展、结尾如何回应。
-- **硬约束注入规划**：世界规则/禁忌/人物认知/已确定事实/秘密在**创意、梗概、逐章展开**三个阶段共同生效
-  （`BookPlan.constraints` 可追溯）；`generated_by` 标记 `llm` / `offline_template`。
-- **分阶段 + 严格校验的 LLM 规划**：蓝图 → 逐卷章节卡片 → 严格校验（章数必须完全一致、字段非空），
-  不满足则回退并**明确标记为离线模板**，绝不静默接受。
-- **重新即兴 = 候选 → 采纳**：`engine/reimproviser.py` 先给候选（含改动字段），作者采纳后才写回；
-  锁定章与锁定字段永不被覆盖。`expand_book` 也会拒绝在已有详细卡片时静默重写（需 `force`）。
-- **两层校验**：结构硬校验（缺章/编号/断链/未回收线索）+ 可选**叙事审阅**（事件合理性/人物选择/冲突升级/
-  结局回应，给出依据与章号）；界面**问题清单优先于分数**。
-- **创意过期保护**：方案记录前提指纹，前提改动后 `ideas_stale` 会提示方案过期。
-- **五维并排对照**：方案在「因果机制 / 信息结构·真相 / 人物关系 / 结局 / 主题解释」上并排比较（新增 `StoryIdea.theme_reading`；CLI 表格 + GUI 对照）。
-- **融合对照**：`Session.fuse_compare` 显示融合后每个维度**取自 A 还是 B**（CLI/GUI 均可见）。
-- **章节级人物上下文**：`BookPlanner._chapter_cast_brief()` 把每个人的「当前目标/秘密/行为倾向」注入逐卷提示；离线生成的人物决策动机优先用 `current_goal`。
-- **结构化编辑控件**：GUI「编辑人物/关系变化（表单）」用简表编辑 `character_decisions / knowledge_changes / relationship_changes`（另有 JSON 面板）；解析函数在 `core/chapter_plan.py`。
-- **结构评价新增维度**：`relationship_evolution（关系演变）`——已定义关系的实际变化比例 + 变化是否带原因。
-- **向量记忆**：`engine/vector_store.py`——可持久化的语义向量库（有嵌入模型时用 embedding，否则回退 CJK 词向量），`output/vector_store.json`；CLI `memory [--rebuild] [--query "…"]`，`Session.vector_memory()/vector_search()`。
-- **交互式故事板**：`report` 导出的 `story_report.html` 现为**可交互**页面——按视角筛选、关键词搜索、点击章节查看卡片（决策/认知/关系）；GUI「导出故事板（交互式 HTML）」会直接打开。
-- **Jam 多轮辩论**：`JamSession.run(rounds≥2)`——Observer **反驳** Soloist → Soloist **修订** → Editor **归因**（谁贡献了哪个想法）；`jam --rounds N`。
-- **场景骨架由模型生成**：`ScenePlanner` 支持 LLM 路径（失败/离线回退规则法）；`Session.plan(use_llm=True)`。
+- **发散与对照**：`StoryIdea` 含 `theme_reading`（主题解释）；`Session.compare_ideas` 五维并排；`Session.fuse_compare` 标注融合维度取自 A/B。
+- **硬约束注入**：世界规则/禁忌/人物认知/已确定事实/秘密在**创意、梗概、逐卷展开**三个阶段共同生效（`BookPlan.constraints` 可追溯）；`generated_by` 标记 `llm` / `offline_template`。
+- **分阶段 + 严格校验的 LLM 规划**：蓝图 → 逐卷章节卡片 → **章数必须完全一致、字段非空**，不满足即回退并明确标记，绝不静默接受。
+- **全书梗概**：`synopsis / opening_state / inciting_incident / central_turn / climax / resolution`——不看卡片也能理解故事为何这样发展、结尾如何回应。
+- **POV 分布**：`multi_pov` 平衡交错、`ensemble` 连续视角弧；关键转折章收束到 `primary_character_id`（不再依赖文件顺序）。
+- **锁定**：整章锁定 + 字段级锁定；`expand_book` 拒绝在已有详细卡片时静默重写（需 `force`）。
+- **重新即兴 = 候选 → 采纳**：先给候选（含改动字段），采纳后才写回；锁定内容不被覆盖。
+- **两层校验**：结构硬校验（缺章/编号/断链/未回收线索/闲置人物/未知人物 id/关系连续性/认知连续性）+ 可选**叙事审阅**（事件合理性/人物选择/冲突升级/结局回应，给出依据与章号）。
+- **结构评价七维**：创意独特性 / 故事完整性 / 因果连续性 / 人物变化 / 章节贡献 / 伏笔与回收 / **关系演变**。
+- **创意过期保护**：方案记录前提指纹，前提改动后 `ideas_stale` 会提示过期。
 
-## 人物与关系网络（V2.6）
+---
 
-人物数量**不设上限**，按层级管理，示例给了 5 人（3 核心 + 2 重要配角）：
+## 记忆 · 偏离检测 · 可视化
 
-- `Character` 现有稳定 `id`、`tier`（core/supporting/functional）、`pov`（是否可作视角），
-  以及叙事驱动字段：`blind_spots`（认知局限）、`secrets`、`capabilities`/`constraints`（能做/受限）、`current_goal`。
-- `data/relationships.yaml` 定义**人物关系网络**：`mutual_interest / conflict / asymmetry / initial_state / pressure_point / possible_transition`——人和人为什么必须合作、在哪冲突、什么事件会改变关系。
-- 核心人物与关系会**注入 `BookPlanner`**（故事创意/全书蓝图），不再只是姓名列表。
-- 每章新增人物参与记录：`pov_character_id / characters_involved / character_decisions / knowledge_changes / relationship_changes`。
-- **每章关系变化**：转折类章节会依据 `relationships.yaml` 的 `pressure_point / possible_transition` 生成 `relationship_changes`（pair/change/cause）；模型路径同样要求填写，且 pair 必须来自已定义关系。
-- 校验器新增：**人物使用检查**（登记却未参与任何章节）、**关系连续性检查**（未定义关系发生变化、变化缺少原因、已定义关系全书从未变化）、未知人物 id 引用、**关系网络孤立子图**提示。
-- **类型化数据结构**：`CharacterDecision / KnowledgeChange / RelationshipChange`（各有 character_id + 可追溯的 motivation/source/cause），离线与 LLM 两条路径使用同一份契约。
-- **稳定引用**：`BookPlan.primary_character_id`（不再依赖人物文件顺序）；`Session.resolve_character()` 支持按 **id / 姓名 / 别名** 解析；`Session.setup_warnings()` 检查 id 重复、关系端点缺失、无可用 POV 核心人物。
-- **嵌套字段编辑**：GUI「卡片JSON」标签页可直接编辑并保存整张章节卡片（含人物决策/认知/关系变化）；CLI `outline --edit-json N --file card.json`。
-- **人物上下文按任务分场景**：`Character.brief("story"/"chapter")` 与 `as_prompt()` 覆盖信念/记忆/当前目标/盲点/秘密/能力/限制等（避免把所有档案塞进每次提示）。
-- **人物认知连续性**：每章 `knowledge_changes` 必须给出**信息来源**；来源不得指向**不早于本章的时间**；若认知变化涉及作者保留的秘密（`KnowledgeChange.fact_id` ⨯ `story_state`）→ 提示确认揭露时机。校验结合 `story_state`，并已验证**关系网络与世界约束确实进入规划器**。
-- `python main.py chars` 查看人物库、使用情况与关系网络（GUI 有「人物」标签页）。
+- **轻量语义记忆**（`engine/memory.py`）：近重复检测、主题漂移、人物弧缺失、意象未使用、结构卡片提前揭露。（相似度为"报警"，不作评分。）
+- **向量记忆**（`engine/vector_store.py`）：**可持久化**的语义向量库——有嵌入模型时用 embedding，否则回退 CJK 词向量，存到 `output/vector_store.json`；`Session.vector_memory()/vector_search()`，CLI `memory`。
+- **故事板导出**（`engine/report.py`）：`output/story_report.md` 与**可交互** `output/story_report.html`（按视角筛选、关键词搜索、点击章节查看卡片）；含动机演变时间线、人物弧线图、线索伏笔面板。
+- **运行记录**：每次 `play` 写 `output/runs/<run_id>.json`（cue/prompt/评价/建议）；`history` 做趋势统计；`--show-prompt` 打印的就是实际调用的同一份 prompt。
 
-> 注意：不同人物层级数量只是设计建议——短篇可用 2–3 人，群像可更多。
+---
+
+## Jam Session 合奏
+
+`jam_session/` 顺序合奏，各角色任务不同、**不各自重写正文**：
+
+- **Director** 定方向与限制 → **Soloist** 从人物欲望/恐惧/盲点出行动 → **Observer** 给非中心细节/边缘视角 → **Editor** 给候选打分排序、剔除矛盾与提前揭露、整合提案（**不自动升级为正式设定**）。
+- **多轮辩论**（`rounds≥2`）：Observer **反驳**（太笼统/直说主题/复述旧冲突）→ Soloist **修订** → Editor **归因**（谁贡献了哪个想法）。
+- CLI：`python main.py jam "场景" --pov 林 --rounds 2 --render`。
+
+---
+
+## 接入真实模型
+
+**任意 OpenAI 兼容端点**（OpenAI / DeepSeek / Qwen / vLLM / Ollama）：
+
+```powershell
+pip install openai
+$env:OPENAI_API_KEY = "sk-..."
+$env:NJE_BASE_URL   = "https://api.deepseek.com/v1"
+$env:NJE_MODEL      = "deepseek-chat"
+python main.py play "..." --provider openai
+```
+
+**opencode（复用你已连接的模型）**：
+
+```powershell
+opencode serve --port 4096          # 另开终端
+python main.py play "..." --provider opencode
+```
+
+可选环境变量：`NJE_OPENCODE_URL`（默认 `http://127.0.0.1:4096`）、`NJE_OPENCODE_MODEL`、`OPENCODE_SERVER_PASSWORD`。
+不设任何 Key 时仍可用 `mock` 离线跑通。
+
+---
 
 ## 数据文件（乐谱）
 
@@ -334,82 +255,69 @@ openai 与 opencode 两个后端都可用；不设任何 Key 时仍可用 `mock`
 - `data/characters.yaml` — 人物库（id/层级/视角 + 叙事驱动字段）
 - `data/relationships.yaml` — 人物关系网络
 - `data/motifs.yaml` — 意象定义（运行时意义演变写入 `motif_state.yaml`）
-- `data/story_state.yaml` — 故事圣经（事实/认知/线索）
+- `data/story_state.yaml` — 故事圣经（事实 / 认知 / 线索 / 近期事件）
 
-`python main.py init --force` 可重新写入示例乐谱。
+`python main.py init --force` 重新写入示例乐谱。`--data <dir>` 可切换到独立项目乐谱（如同时维护多部小说）。
+
+---
 
 ## 架构
 
 ```
-core/
-  theme.py       主题旋律         core/improviser.py  即兴简报(核心)
-  character.py   人物 Solo        core/motif.py       动机追踪
-  harmony.py     叙事和声
-  story_state.py  故事状态(事实/认知/线索) core/improviser.py 即兴简报
-improvisation/                     # 即兴层：受控的偏移
-  improvisation_score.py  指挥台 + Cue(核心)
-  operator_engine.py      叙事操作库(8种, V0.5 核心)
-  randomizer.py           JazzSeed 随机种子
-  motif_engine.py         动机变奏
-  surprise_engine.py      受控意外(尊重故事状态)
-  rhythm_engine.py        叙事节奏
-  solo_engine.py          人物 Solo
-engine/
-  composer.py    取一次 Take      evaluator.py   回听评价(含文学信号)
-  variation.py   多版本变奏       scene_planner.py 下一章场景骨架
-  textutil.py    轻量文本分析     semantic_similarity.py 可选语义评价
-feedback/
-  theme_check.py / character_check.py / novelty_check.py
-  conductor.py   重调乐谱(自适应)
-llm/
-  base.py        接口            mock.py 离线    openai_provider.py 真实模型
-session.py       乐队装配         store.py 读写(含 runs/state)  cli.py 命令行
-tests/           确定性/记录/连续性/反馈 回归测试
-output/
-  chapters/      章节正文(.md)     runs/  完整运行记录(.json)
-  advice_history.jsonl  参数建议与变更记录
-data/
-  story.yaml characters.yaml relationships.yaml motifs.yaml story_state.yaml [jazz_state.yaml]
+core/           theme / character / relationship / harmony / motif / story_state
+                story_idea / volume_plan / chapter_plan / book_plan / improviser
+improvisation/  improvisation_score(指挥台+Cue) · operator_engine · randomizer
+                motif_engine · surprise_engine · rhythm_engine · solo_engine
+engine/         book_planner · outline_expander · reimproviser · plot_validator
+                structure_evaluator · narrative_reviewer · scene_planner
+                composer · variation · evaluator · textutil · semantic_similarity
+                memory · vector_store · report · planning_llm
+feedback/       theme_check / character_check / novelty_check / conductor
+jam_session/    director / soloist / observer / editor / orchestrator
+llm/            base / mock / openai_provider / opencode_provider
+session.py  store.py  cli.py  gui.py  main.py
+tests/          回归测试（91 项）
+projects/       独立小说的乐谱与稿子（示例见 projects/border2020/）
 ```
+
+---
 
 ## 设计原则
 
-1. **硬约束 vs 软约束**：世界规则、时间线、人物经历不可违反；描述方式、场景顺序、对话风格可自由变奏。
+1. **硬约束 vs 软约束**：世界规则、时间线、人物经历、人物认知不可违反；描述方式、场景顺序、语言风格可自由变奏。
 2. **主题不可直说**：只通过细节与意象让主题"被听见"。
-3. **人物驱动而非情节驱动**：同一事件经过不同人物的即兴规则，产生不同故事。
+3. **人物驱动而非情节驱动**：同一事件经过不同人物的欲望与盲点，产生不同故事。
 4. **动机变奏**：每个核心意象出现时给出新意义，杜绝同义复读。
 5. **受控偏移**：即兴不是随机；所有偏离都由 `Cue` 约束，并可在回听后回调。
+6. **作者优先**：系统只提供方案与提案，采纳与定稿始终由作者决定。
 
-## 定位
+---
 
-> **Human-AI Improvisational Writing System（人机即兴写作系统）**
+## 测试
 
-作者提供主题与世界 → AI 提供即兴变化 → 作者挑选最佳演奏片段 → 系统维持长期主题一致性。
-更接近爵士合奏与即兴戏剧，而非传统写作助手。
+```powershell
+python -m unittest discover -s tests     # 91 项：确定性 / 记录 / 连续性 / 约束注入 / 结构校验 / 人物关系 / 反馈边界 / 向量记忆 / Jam
+```
 
-## 路线图
+---
 
-- V0.2 ✅ 可插拔 LLM（mock / OpenAI 兼容）
-- V0.3 ✅ 回听评价 + 多 Take
-- V0.4 ✅ 即兴层：乐谱参数 / 受控意外 / 动机变奏 / 回听重调
-- V0.4.1 ✅ 可观测性：完整运行记录 `output/runs` / `history` 趋势 / `--show-prompt` 一致 / 可选语义评价 / 回归测试
-- V0.5 ✅ 叙事即兴引擎：`ImprovisationOperator` 操作库 / 故事状态感知的意外 / 多路径探索(Mode B)
-- V0.6 ◑ 长篇记忆与闭环：`StoryState` 故事圣经 / `scene_planner` 场景骨架 / `Conductor` 可撤销参数闭环 / 文学回听信号（向量记忆待做）
-- **V2.0 ✅ 定位转向「结构即兴引擎」**：`BookPlan/VolumePlan/ChapterPlan` + 故事级发散 +
-  结构校验（六维/问题式）+ 锁定与影响追踪 + 结构工作台 GUI（并发安全）+ 结构导出；正文生成降级为可选。
-- **V2.1 ✅ 融合 / 卡片编辑 / 范围重生成**。
-- **V2.2 ✅ POV 分布优化 + 字段级锁定 + Jam Session（V0.7）**。
-- V0.7 ✅ Jam Session：Director + Soloist + Observer + Editor 顺序合奏（Editor 候选打分排序）。
-- **V2.3 ✅ 记忆与偏离检测 + 故事板导出（动机时间线 / 人物弧线 / 伏笔面板）**。
-- **V2.4 ✅ 重新即兴候选/采纳 + 硬约束注入规划 + 分阶段严格章数校验 + 全书梗概 + 两层校验 + 创意过期保护**。
-- **V2.11 ✅ 向量记忆（持久化/embedding 可选）+ 交互式故事板 + Jam 多轮辩论 + 模型生成场景骨架**。
-- **V2.10 ✅ 创意五维对照 + 融合对照 + 章节级人物上下文 + 结构化编辑控件 + 关系演变维度**。
-- **V2.9 ✅ 人物认知连续性 + 注入链路测试**：认知变化必须有来源、来源不得来自未来、涉及秘密时提示揭露时机；新增“关系网络注入 / 世界约束注入”验证测试。
-- **V2.8 ✅ 人物链路贯通**：类型化 `CharacterDecision/KnowledgeChange/RelationshipChange`；`primary_character_id` + `resolve_character`（id/姓名/别名）+ 数据完整性检查；关系孤立子图诊断；人物上下文分场景；章节卡片 JSON 编辑器（GUI/CLI）。
-- **V2.7 ✅ 每章关系变化 + 关系连续性校验**：章节 `relationship_changes`（pair/change/cause）；校验未定义关系变化、缺原因、关系从未变化、未知人物 id。
-- **V2.6 ✅ 人物与关系网络**：人物 id/层级/可选 POV + 叙事驱动字段（盲点/秘密/能力/限制/当前目标）；`relationships.yaml` 关系网络；核心人物与关系注入规划器；章节人物参与记录；人物使用检查 + `chars` 命令 + GUI「人物」页。
-- **V2.5 ✅ 质量门禁回归测试**：结构校验补章号/缺章/卷内顺序检查；`SingleFlight` 单任务守卫；端到端门禁
-  （前提→多方向→完整结构→改中段章→准确影响范围 + 锁定保护）。共 52 项测试。
-- V1.0 ◑ 轻量语义记忆与偏离检测已实现（词典向量 + 可选 embedding）；剩余：真正的向量库与交互式可视化编辑器。
+## 版本历史
+
+| 版本 | 内容 |
+| --- | --- |
+| **v2.11** | 向量记忆（持久化/embedding 可选）· 交互式故事板 · Jam 多轮辩论 · 模型生成场景骨架 |
+| v2.10 | 创意五维对照 · 融合对照 · 章节级人物上下文 · 结构化编辑控件 · 关系演变维度 |
+| v2.9 | 人物认知连续性（来源必填/不来自未来/秘密提示）· 注入链路测试 |
+| v2.8 | 类型化人物字段 · `primary_character_id` · `resolve_character` · 关系孤立诊断 · JSON 编辑器 |
+| v2.7 | 每章关系变化 + 关系连续性校验 |
+| v2.6 | 人物与关系网络 · `chars` 命令 · GUI「人物」页 |
+| v2.5 | 质量门禁回归测试 · 章号/缺章校验 · GUI 单任务守卫 |
+| v2.4 | 重新即兴候选/采纳 · 硬约束注入 · 分阶段严格章数校验 · 全书梗概 · 两层校验 · 创意过期保护 |
+| v2.3 | 记忆与偏离检测（theme drift / 近重复 / 弧缺失）· 故事板导出 |
+| v2.2 | POV 分布优化 · 字段级锁定 · Jam Session |
+| v2.1 | 方案融合 · 章节卡片编辑 · 范围重生成 |
+| v2.0 | 定位转向「结构即兴引擎」（BookPlan / 结构校验 / 结构工作台） |
+| v0.4–v0.6 | 即兴层与受控偏移（操作库 · 故事状态感知的意外 · 多路径探索 · 回听重调） |
+| v0.2–v0.3 | 可插拔 LLM · 回听评价 · 多 Take |
 
 核心循环：**设定 → 即兴决策 → 生成多个可能性 → 回听与比较 → 作者选择 → 更新故事状态 → 下一轮即兴。**
