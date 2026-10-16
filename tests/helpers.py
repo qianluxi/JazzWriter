@@ -2,6 +2,20 @@
 
 from __future__ import annotations
 
+import tempfile
+from pathlib import Path
+
+import store
+
+# Keep all test output away from the real output/ directory.
+_TMP = Path(tempfile.mkdtemp(prefix="jw_tests_"))
+store.RUNS_DIR = _TMP / "runs"
+store.ADVICE_PATH = _TMP / "advice_history.jsonl"
+store.BOOK_PLAN_PATH = _TMP / "book_plan.json"
+store.BOOK_OUTLINE_PATH = _TMP / "book_outline.md"
+store.MOTIF_STATE_PATH = _TMP / "motif_state.yaml"
+store.STATE_PATH = _TMP / "story_state.yaml"
+
 from core.character import Character
 from core.harmony import Harmony
 from core.motif import MotifLibrary

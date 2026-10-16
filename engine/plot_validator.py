@@ -188,9 +188,9 @@ class PlotValidator:
                                         f"第 {c.number} 章 {who} 的认知变化缺少信息来源(source)", c.number))
                 else:
                     nums = [int(x) for x in re.findall(r"第\s*(\d+)\s*章", kc.source)]
-                    if nums and min(nums) >= c.number:
+                    if nums and min(nums) > c.number:
                         issues.append(Issue("medium", "knowledge",
-                                            f"第 {c.number} 章 {who} 的信息来源指向不早于本章的时间（{kc.source}）",
+                                            f"第 {c.number} 章 {who} 的信息来源指向未来章节（{kc.source}）",
                                             c.number))
                 if kc.fact_id and kc.fact_id in secret_ids:
                     issues.append(Issue("low", "knowledge",

@@ -46,13 +46,18 @@ class KnowledgeContinuityTest(unittest.TestCase):
     def test_future_source_flagged(self):
         book = _book([KnowledgeChange(character_id="林", change="得知", source="第5章 对话")], number=2)
         issues = PlotValidator().validate(book, story_state=make_state())
-        self.assertTrue(any(i.kind == "knowledge" and "不早于本章" in i.message for i in issues))
+        self.assertTrue(any(i.kind == "knowledge" and "未来章节" in i.message for i in issues))
 
     def test_secret_reveal_hint(self):
         book = _book([KnowledgeChange(character_id="林", change="得知", source="第1章 记录",
                                       fact_id="secret_001")], number=2)
         issues = PlotValidator().validate(book, story_state=make_state())
         self.assertTrue(any(i.kind == "knowledge" and "秘密" in i.message for i in issues))
+
+    def test_same_chapter_source_allowed(self):
+        book = _book([KnowledgeChange(character_id="林", change="得知", source="第2章 现场")], number=2)
+        issues = PlotValidator().validate(book, story_state=make_state())
+        self.assertFalse(any(i.kind == "knowledge" for i in issues))
 
     def test_clean_knowledge_passes(self):
         book = _book([KnowledgeChange(character_id="林", change="得知", source="第1章 记录")], number=2)
