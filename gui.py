@@ -392,6 +392,10 @@ class App:
             messagebox.showinfo("先生成创意", "请先点「生成创意方案」。")
             return
         premise = snap["scene"]
+        if self.session.ideas_stale(self.ideas, premise):
+            if not messagebox.askyesno("方案可能已过期",
+                                       "故事前提已改过，当前创意方案是旧前提生成的。\n仍要使用这些旧方案吗？"):
+                return
         pick = max(1, snap["pick"]) - 1
 
         def work():
@@ -427,23 +431,40 @@ class App:
         if number is None:
             messagebox.showinfo("选择章节", "请在结构树里选中一章。")
             return
-        affected = self.session.book.affected_downstream(number)
-        scope = self._ask_scope(affected)
-        if scope is None:
-            return  # cancelled
         snap = self._snapshot()
+        self._pending_number = number
+        self._pending_seed = snap["seed"]
+        self._async(lambda: self.session.reimprovise_candidates(number, seed=snap["seed"]),
+                    self._render_candidates, label=f"生成第 {number} 章候选…")
 
-        def work():
-            return self.session.reimprovise_chapter(number, seed=snap["seed"], regen=scope)
-
-        self._async(work, self._render_reimprov, label=f"重新即兴第 {number} 章…")
-
-    def _render_reimprov(self, result) -> None:
-        book, regenerated = result
+    def _render_candidates(self, candidates) -> None:
+        if not candidates:
+            messagebox.showinfo("无候选", "未生成候选。")
+            return
+        idx = self._ask_candidate(candidates, self._pending_number)
+        if idx is None:
+            return
+        book, affected = self.session.apply_candidate(candidates[idx])
         self._populate_tree(book)
         self._set_card(self._cards_text(book))
         self.nb.select(self.tree_tab_index)
-        messagebox.showinfo("完成", f"已重新即兴的章节：{regenerated}\n锁定章节保持不变。")
+        scope = self._ask_scope(book.affected_downstream(self._pending_number))
+        if not scope:
+            messagebox.showinfo("已采纳", f"已采纳候选并写回第 {self._pending_number} 章。\n受影响：{affected}")
+            return
+        target = sorted(set(scope) - {self._pending_number})
+
+        def work():
+            return self.session.regenerate_chapters(target, seed=self._pending_seed)
+
+        self._async(work, self._render_reimprov, label="重生成后续章节…")
+
+    def _render_reimprov(self, result) -> None:
+        book, done = result
+        self._populate_tree(book)
+        self._set_card(self._cards_text(book))
+        self.nb.select(self.tree_tab_index)
+        messagebox.showinfo("完成", f"已重生成：{done}\n锁定章节与锁定字段保持不变。")
 
     def on_save_card(self) -> None:
         if self.session is None or self.session.book is None:
@@ -757,17 +778,70 @@ class App:
             "causal_continuity": "因果连续性", "character_change": "人物变化",
             "chapter_contribution": "章节贡献", "foreshadowing": "伏笔与回收",
         }
-        lines = [f"综合 {report.overall:.0%}"]
+        lines = ["【结构校验（硬问题，优先看这里）】"]
+        lines += ([f"  · {i}" for i in report.validation] or ["  · 未发现硬问题"])
+        review = getattr(report, "review", []) or []
+        if review:
+            lines.append("")
+            lines.append("【叙事审阅（含依据）】")
+            for f in review:
+                ch = f"第{f['chapter']}章 " if f.get("chapter") else ""
+                ev = f"　依据：{f['evidence']}" if f.get("evidence") else ""
+                lines.append(f"  · {ch}{f['issue']}{ev}")
+        lines.append("")
+        lines.append(f"【参考分数（分数仅供参考）】综合 {report.overall:.0%}")
         for k, v in report.dimensions.items():
             bar = "█" * int(round(v * 10))
             lines.append(f"  {labels.get(k, k):<6} {v:5.0%} {bar}")
-        if report.issues:
-            lines.append("")
-            lines.append("具体问题：")
-            lines += [f"  · {i}" for i in report.issues]
         for note in report.notes:
             lines.append(f"  ({note})")
         return "\n".join(lines)
+
+    def _ask_candidate(self, candidates, number):
+        win = tk.Toplevel(self.root)
+        win.title(f"第 {number} 章 · 即兴候选")
+        win.transient(self.root)
+        win.grab_set()
+        win.geometry("760x460")
+        ttk.Label(win, text="选择一个候选采纳（不会覆盖未选中的内容；锁定字段保持不变）").pack(anchor="w", padx=10, pady=6)
+        body = ttk.Frame(win)
+        body.pack(fill="both", expand=True, padx=10)
+        listbox = tk.Listbox(body, width=30)
+        listbox.pack(side="left", fill="y")
+        preview = tk.Text(body, wrap="word")
+        preview.pack(side="left", fill="both", expand=True, padx=(8, 0))
+        for i, c in enumerate(candidates, 1):
+            tag = "模型" if c.source == "llm" else "离线模板"
+            listbox.insert("end", f"[{i}] {tag} · {', '.join(c.changed_fields) or '无'}")
+
+        def show(_e=None):
+            sel = listbox.curselection()
+            if not sel:
+                return
+            c = candidates[sel[0]]
+            preview.configure(state="normal")
+            preview.delete("1.0", "end")
+            preview.insert("1.0", f"{c.label}\n\n改动字段：{', '.join(c.changed_fields)}\n{c.note}\n\n"
+                                  f"冲突：{c.chapter.conflict}\n结果：{c.chapter.outcome}\n"
+                                  f"信息变化：{c.chapter.info_change}\n摘要：{c.chapter.summary}")
+            preview.configure(state="disabled")
+
+        listbox.bind("<<ListboxSelect>>", show)
+        listbox.selection_set(0)
+        show()
+        result = {"idx": None}
+
+        def ok():
+            sel = listbox.curselection()
+            result["idx"] = sel[0] if sel else None
+            win.destroy()
+
+        btns = ttk.Frame(win)
+        btns.pack(fill="x", padx=10, pady=8)
+        ttk.Button(btns, text="采纳", command=ok).pack(side="right", padx=4)
+        ttk.Button(btns, text="取消", command=win.destroy).pack(side="right")
+        self.root.wait_window(win)
+        return result["idx"]
 
     @staticmethod
     def _cue_text(take) -> str:

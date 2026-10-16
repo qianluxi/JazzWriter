@@ -36,6 +36,7 @@ class ChapterPlan(Model):
     summary: str = ""             # 一两句情节摘要
     status: str = "candidate"     # candidate | accepted | locked
     locked_fields: List[str] = Field(default_factory=list)  # field-level locks
+    source: str = ""              # llm | offline_template | edited
     notes: str = ""
 
     @property

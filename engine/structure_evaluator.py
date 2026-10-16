@@ -8,10 +8,11 @@ punished: the report says so explicitly when a template permits them.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from core.book_plan import BookPlan
 from engine import textutil as tu
+from engine.narrative_reviewer import NarrativeReviewer
 from engine.plot_validator import OPEN_TEMPLATES, PlotValidator
 
 DIMENSIONS = {
@@ -28,19 +29,29 @@ DIMENSIONS = {
 class StructureReport:
     dimensions: Dict[str, float]
     overall: float
-    issues: List[str] = field(default_factory=list)
+    validation: List[str] = field(default_factory=list)   # layer 1: hard checks
+    review: List[Dict] = field(default_factory=list)      # layer 2: narrative
     notes: List[str] = field(default_factory=list)
+
+    @property
+    def issues(self) -> List[str]:
+        """Backward-compatible view of the hard validation issues."""
+        return self.validation
 
     def as_dict(self) -> Dict:
         return {
             "dimensions": {k: round(v, 3) for k, v in self.dimensions.items()},
             "overall": round(self.overall, 3),
-            "issues": self.issues,
+            "validation": self.validation,
+            "review": self.review,
             "notes": self.notes,
         }
 
 
 class StructureEvaluator:
+    def __init__(self, reviewer: Optional[NarrativeReviewer] = None) -> None:
+        self.reviewer = reviewer
+
     def evaluate(self, book: BookPlan) -> StructureReport:
         chapters = book.chapters()
         n = max(1, len(chapters))
@@ -105,8 +116,11 @@ class StructureEvaluator:
         }
         overall = sum(dims.values()) / len(dims)
 
-        issues = [i.message for i in PlotValidator().validate(book)]
+        validation = [i.message for i in PlotValidator().validate(book)]
+        reviewer = self.reviewer or NarrativeReviewer()
+        review = [f.to_dict() for f in reviewer.review(book)]
         if book.structure_template in OPEN_TEMPLATES:
             notes.append("该结构模板允许开放结局；未回收的线索不一定算缺陷。")
-        notes.append("结构评价只提示问题，不决定作品好坏；最终由作者判断。")
-        return StructureReport(dimensions=dims, overall=overall, issues=issues, notes=notes)
+        notes.append("问题清单优先于分数：请先看具体问题，再决定方案是否值得写。")
+        return StructureReport(dimensions=dims, overall=overall,
+                               validation=validation, review=review, notes=notes)

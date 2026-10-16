@@ -23,6 +23,9 @@ class StoryIdea(Model):
     distinctness: float = 0.0       # 与基准的差异度 0..1
     rationale: str = ""             # 为什么这条路线值得探索
     differentiators: List[str] = []  # 相对其他候选的差异点
+    source_premise: str = ""        # 生成该方案时使用的前提（用于过期检测）
+    premise_hash: str = ""          # 前提指纹
+    generated_by: str = ""          # llm | offline_template
 
     @property
     def is_viable(self) -> bool:

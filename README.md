@@ -1,12 +1,25 @@
-# JazzWriter（小说爵士引擎）`v2.0`
+# JazzWriter（小说爵士引擎）`v2.4`
 
 > **长篇小说结构即兴引擎 / Human-AI Improvisational Writing System。**
-> 主要产物不是小说正文，而是**故事方案、全书梗概、分卷结构与逐章摘要**——
-> 帮你探索"这个故事还能怎样成立"。
+> 主要产物不是小说正文，而是**故事方案、全书梗概、分卷结构与逐章摘要**。
 
-`v2.0` 起，核心循环是：**给定一个创意前提 → 发散出若干实质不同的故事方案 → 采纳/融合 →
-逐级展开全书结构（分卷 + 逐章摘要卡片）→ 结构校验 → 局部重新即兴 → 导出**。
-正文生成降级为可选的"局部演练"。同时在固定主题/和声/动机约束下，仍可像乐手一样即兴文字。
+## 工作流（结构优先）
+
+1. **输入故事前提**
+2. **生成并比较多个创意方案**（在"因果机制/真相/关系/结局/主题解释"上实质不同）
+3. **选择或融合**方案
+4. **生成完整故事梗概与分卷规划**（synopsis / 开端 / 触发事件 / 关键转折 / 高潮 / 结局处理）
+5. **展开、编辑、锁定**章节摘要卡片（可字段级锁定）
+6. **校验全书**（结构硬校验 + 叙事审阅，问题优先于分数）
+7. **按需局部重新即兴**（先出候选，作者采纳后才写回；锁定内容不被覆盖）
+8. **最后才进入可选的正文试写**
+
+> ⚠️ **mock 与真实模型**：默认 `mock` 是**离线演示**，只用于验证流程（章节卡片明显模板化）。
+> 结构创意与正文质量主要依赖真实模型：`--provider opencode`（复用你已连接的模型）或
+> `--provider openai`。离线生成的结构会明确标记为 `offline_template`，不会伪装成模型创作。
+
+设计目标不变：**可控的创造性**——在主题、世界规则、人物认知与既有事实的约束下，
+探索"这个故事还能怎样成立"。
 
 ## 映射关系
 
@@ -60,8 +73,9 @@ python main.py outline "一场技术事故改变了一个家庭" --build --pick 
 # 3) 结构校验（六维 + 具体问题）／ 锁定 / 重新即兴 / 导出
 python main.py outline --validate
 python main.py outline --lock 3
-python main.py outline --reimprovise 5                 # 重生成第5章及其后续
-python main.py outline --reimprovise 5 --regen 5,6     # 只重生成 5、6 章，其余保持
+python main.py outline --reimprovise 5                 # 生成第5章候选（不覆盖原卡片）
+python main.py outline --reimprovise 5 --adopt 1       # 采纳第1个候选并写回
+python main.py outline --reimprovise 5 --adopt 1 --regen all   # 采纳并重生成后续章节
 python main.py outline --export            # → output/book_outline.md
 
 # 融合两个故事方案（取 A 的因果/关系、B 的真相/结局，形成新的机制）
@@ -273,6 +287,17 @@ openai 与 opencode 两个后端都可用；不设任何 Key 时仍可用 `mock`
   相似章节检索、**近重复检测**、**主题漂移**、人物弧缺失、意象未使用、结构卡片提前揭露。
 - **故事板导出**：`engine/report.py` 生成 `output/story_report.md` 与自包含 `output/story_report.html`
   （动机演变时间线 / 人物弧线图 / 线索伏笔面板 / 偏离检测）。`python main.py report --open`。
+- **全书梗概**：`BookPlan.synopsis / opening_state / inciting_incident / central_turn / climax / resolution`——
+  不看卡片也能理解故事为何这样发展、结尾如何回应。
+- **硬约束注入规划**：世界规则/禁忌/人物认知/已确定事实/秘密在**创意、梗概、逐章展开**三个阶段共同生效
+  （`BookPlan.constraints` 可追溯）；`generated_by` 标记 `llm` / `offline_template`。
+- **分阶段 + 严格校验的 LLM 规划**：蓝图 → 逐卷章节卡片 → 严格校验（章数必须完全一致、字段非空），
+  不满足则回退并**明确标记为离线模板**，绝不静默接受。
+- **重新即兴 = 候选 → 采纳**：`engine/reimproviser.py` 先给候选（含改动字段），作者采纳后才写回；
+  锁定章与锁定字段永不被覆盖。`expand_book` 也会拒绝在已有详细卡片时静默重写（需 `force`）。
+- **两层校验**：结构硬校验（缺章/编号/断链/未回收线索）+ 可选**叙事审阅**（事件合理性/人物选择/冲突升级/
+  结局回应，给出依据与章号）；界面**问题清单优先于分数**。
+- **创意过期保护**：方案记录前提指纹，前提改动后 `ideas_stale` 会提示方案过期。
 
 ## 数据文件（乐谱）
 
@@ -345,6 +370,7 @@ data/
 - **V2.2 ✅ POV 分布优化 + 字段级锁定 + Jam Session（V0.7）**。
 - V0.7 ✅ Jam Session：Director + Soloist + Observer + Editor 顺序合奏（Editor 候选打分排序）。
 - **V2.3 ✅ 记忆与偏离检测 + 故事板导出（动机时间线 / 人物弧线 / 伏笔面板）**。
+- **V2.4 ✅ 重新即兴候选/采纳 + 硬约束注入规划 + 分阶段严格章数校验 + 全书梗概 + 两层校验 + 创意过期保护**。
 - V1.0 ◑ 轻量语义记忆与偏离检测已实现（词典向量 + 可选 embedding）；剩余：真正的向量库与交互式可视化编辑器。
 
 核心循环：**设定 → 即兴决策 → 生成多个可能性 → 回听与比较 → 作者选择 → 更新故事状态 → 下一轮即兴。**

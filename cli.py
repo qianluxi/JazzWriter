@@ -445,7 +445,19 @@ def _print_chapter_map(book) -> None:
 
 
 def _print_structure(report) -> None:
-    table = Table(title="结构评价 · Structure", header_style="bold")
+    # 问题清单优先，分数其次
+    if report.validation:
+        console.print("[yellow]结构校验（硬问题）：[/yellow]")
+        for issue in report.validation[:12]:
+            console.print(f"  · {issue}")
+    review = getattr(report, "review", []) or []
+    if review:
+        console.print("[cyan]叙事审阅（含依据）：[/cyan]")
+        for f in review[:8]:
+            ch = f"第{f['chapter']}章 " if f.get("chapter") else ""
+            ev = f"　依据：{f['evidence']}" if f.get("evidence") else ""
+            console.print(f"  · {ch}{f['issue']}{ev}")
+    table = Table(title="结构评价 · Structure（分数仅供参考）", header_style="bold")
     table.add_column("维度")
     table.add_column("分数", justify="right")
     labels = {
@@ -457,12 +469,21 @@ def _print_structure(report) -> None:
         table.add_row(labels.get(k, k), f"{v:.0%}")
     table.add_row("综合", f"[bold]{report.overall:.0%}[/bold]")
     console.print(table)
-    if report.issues:
-        console.print("[yellow]具体问题：[/yellow]")
-        for issue in report.issues[:12]:
-            console.print(f"  · {issue}")
     for note in report.notes:
         console.print(f"  [dim]{note}[/dim]")
+
+
+def _print_synopsis(book) -> None:
+    if not book.synopsis:
+        return
+    lines = [f"核心创意：{book.logline}", f"梗概：{book.synopsis}"]
+    for label, value in (("开端", book.opening_state), ("触发事件", book.inciting_incident),
+                         ("关键转折", book.central_turn), ("高潮", book.climax),
+                         ("结局处理", book.resolution)):
+        if value:
+            lines.append(f"{label}：{value}")
+    lines.append(f"（生成方式：{'模型' if book.generated_by == 'llm' else '离线模板'}）")
+    console.print(Panel("\n".join(lines), title="全书梗概 · Synopsis", border_style="green"))
 
 
 def cmd_outline(args) -> int:
@@ -534,20 +555,41 @@ def cmd_outline(args) -> int:
         console.print("[dim]把它作为方案 1 采纳即可：`outline ... --build --pick 1`（当前实现下融合方案需在 GUI 中使用）。[/dim]")
         return 0
     if args.reimprovise is not None:
-        regen = None
-        if args.regen and args.regen.lower() != "all":
-            try:
-                regen = [int(x) for x in args.regen.split(",") if x.strip()]
-            except ValueError:
-                console.print("[red]--regen 需要逗号分隔的章号或 all[/red]")
-                return 2
         try:
-            book, regenerated = session.reimprovise_chapter(
-                args.reimprovise, seed=args.seed, regen=regen)
+            candidates = session.reimprovise_candidates(args.reimprovise, seed=args.seed)
         except ValueError as exc:
             console.print(f"[red]{exc}[/red]")
             return 2
-        console.print(f"[green]已重新即兴[/green]（重生成章：{regenerated}；锁定章保持不变）")
+        if args.adopt is None:
+            console.print(f"[bold]第 {args.reimprovise} 章的即兴候选（不会自动覆盖原卡片）：[/bold]")
+            for i, c in enumerate(candidates, 1):
+                tag = "模型" if c.source == "llm" else "离线模板"
+                console.print(f"  [{i}] {c.label}　（{tag}）　改动字段：{', '.join(c.changed_fields) or '无'}")
+            console.print("[dim]用 --adopt K 采纳某个候选；可加 --regen a,b 同时重生成后续章节。[/dim]")
+            return 0
+        k = args.adopt - 1
+        if not (0 <= k < len(candidates)):
+            console.print(f"[red]--adopt 超出范围（1..{len(candidates)}）[/red]")
+            return 2
+        try:
+            book, affected = session.apply_candidate(candidates[k])
+        except ValueError as exc:
+            console.print(f"[red]{exc}[/red]")
+            return 2
+        console.print(f"[green]已采纳候选 {args.adopt}[/green]（第 {args.reimprovise} 章）；锁定字段保持不变。")
+        if args.regen:
+            if args.regen.lower() == "all":
+                target = book.affected_downstream(args.reimprovise)
+            else:
+                try:
+                    target = [int(x) for x in args.regen.split(",") if x.strip()]
+                except ValueError:
+                    console.print("[red]--regen 需要逗号分隔的章号或 all[/red]")
+                    return 2
+            target = [n for n in target if n != args.reimprovise]
+            book, done = session.regenerate_chapters(sorted(set(target)), seed=args.seed)
+            console.print(f"[dim]同时重生成：{done}[/dim]")
+        console.print(f"[dim]可能受影响的后续章节：{affected}[/dim]")
         _print_chapter_map(book)
         return 0
     if args.export:
@@ -583,6 +625,7 @@ def cmd_outline(args) -> int:
         console.print(f"[dim]采纳方案 {pick + 1}，展开为 {args.chapters} 章 …[/dim]")
         book = session.build_book(premise, ideas, pick=pick, chapters=args.chapters,
                                   template=args.template, seed=args.seed)
+        _print_synopsis(book)
         _print_chapter_map(book)
         report = session.validate_book(book)
         _print_structure(report)
@@ -927,9 +970,10 @@ def build_parser() -> argparse.ArgumentParser:
                     help="融合两个故事方案（编号从 1 起）")
     ol.add_argument("--edit", type=int, default=None,
                     help="用 --file 的卡片文本(字段：值)更新指定章")
-    ol.add_argument("--reimprovise", type=int, default=None, help="重新即兴指定章")
+    ol.add_argument("--reimprovise", type=int, default=None, help="为指定章生成即兴候选")
+    ol.add_argument("--adopt", type=int, default=None, help="采纳第 K 个重新即兴候选")
     ol.add_argument("--regen", default=None,
-                    help="配合 --reimprovise：逗号分隔要重生成的章号，或 all")
+                    help="配合 --adopt：逗号分隔要重生成的章号，或 all")
     ol.add_argument("--lock", type=int, default=None, help="锁定指定章")
     ol.add_argument("--unlock", type=int, default=None, help="解锁指定章")
     ol.add_argument("--lock-field", dest="lock_field", nargs=2, metavar=("N", "FIELD"),

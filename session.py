@@ -21,7 +21,9 @@ from engine.book_planner import BookPlanner
 from engine.composer import Composer, Take
 from engine.evaluator import Evaluation, Evaluator
 from engine.memory import DeviationReport, MemoryIndex, analyze_book
+from engine.narrative_reviewer import NarrativeReviewer
 from engine.outline_expander import OutlineExpander, TEMPLATE_LABELS
+from engine.reimproviser import ChapterCandidate, ChapterReimproviser
 from engine.plot_validator import PlotValidator
 from engine.report import write_reports
 from engine.scene_planner import ScenePlanner, SceneSkeleton
@@ -346,10 +348,36 @@ class Session:
         llm = None
         if use_llm and getattr(self.provider, "name", "mock") not in ("mock", ""):
             llm = self.provider
-        return BookPlanner(self.theme, self._char_list(), params, llm=llm)
+        return BookPlanner(self.theme, self._char_list(), params, llm=llm,
+                           harmony=self.harmony, story_state=self.story_state)
+
+    @staticmethod
+    def _premise_hash(premise: str) -> str:
+        import hashlib
+        return hashlib.sha1(premise.strip().encode("utf-8")).hexdigest()[:12]
 
     def story_ideas(self, premise: str, *, count=None, seed=None, use_llm=True) -> List[StoryIdea]:
-        return self._planner(seed=seed, use_llm=use_llm).ideas(premise, count=count, seed=seed)
+        ideas = self._planner(seed=seed, use_llm=use_llm).ideas(premise, count=count, seed=seed)
+        ph = self._premise_hash(premise)
+        for idea in ideas:
+            idea.source_premise = premise
+            idea.premise_hash = ph
+        return ideas
+
+    def ideas_stale(self, ideas: List[StoryIdea], premise: str) -> bool:
+        ph = self._premise_hash(premise)
+        return any(i.premise_hash and i.premise_hash != ph for i in ideas)
+
+    def compare_ideas(self, ideas: List[StoryIdea]) -> List[dict]:
+        rows = []
+        for i, idea in enumerate(ideas, 1):
+            rows.append({
+                "index": i, "label": idea.label,
+                "causal": idea.causal_mechanism, "truth": idea.truth_nature,
+                "relation": idea.character_relation, "ending": idea.ending_direction,
+                "distinctness": idea.distinctness, "differentiators": idea.differentiators,
+            })
+        return rows
 
     def build_book(self, premise: str, ideas: List[StoryIdea], *, pick: int = 0,
                    chapters: int = 12, template=None, seed=None, use_llm=True) -> BookPlan:
@@ -366,7 +394,10 @@ class Session:
                    picks=None, seed=None, use_llm: bool = True) -> StoryIdea:
         if a == b or not (0 <= a < len(ideas)) or not (0 <= b < len(ideas)):
             raise ValueError("请选择两个不同的方案编号")
-        return self._planner(seed=seed, use_llm=use_llm).fuse(ideas[a], ideas[b], picks=picks)
+        fused = self._planner(seed=seed, use_llm=use_llm).fuse(ideas[a], ideas[b], picks=picks)
+        fused.source_premise = ideas[a].source_premise
+        fused.premise_hash = ideas[a].premise_hash
+        return fused
 
     def save_book(self) -> Path:
         return save_book_plan(self._require_book())
@@ -382,8 +413,12 @@ class Session:
         save_book_plan(book)
         return book
 
-    def expand_book(self, *, chapters=None, template=None, seed=None) -> BookPlan:
+    def expand_book(self, *, chapters=None, template=None, seed=None, force: bool = False) -> BookPlan:
         book = self._require_book()
+        if book.chapters() and not force:
+            raise ValueError(
+                "全书结构已存在；expand 会重写所有章节卡片。"
+                "如确需重写请传 force=True，或改用按章重新即兴（reimprovise_candidates）。")
         n = chapters or len(book.chapters()) or 12
         OutlineExpander(self.theme, book.cast).expand(
             book, n, template=template or book.structure_template,
@@ -395,7 +430,8 @@ class Session:
         target = book or self.book
         if target is None:
             raise ValueError("尚无 BookPlan")
-        return StructureEvaluator().evaluate(target)
+        llm = self.provider if getattr(self.provider, "name", "mock") not in ("mock", "") else None
+        return StructureEvaluator(reviewer=NarrativeReviewer(llm)).evaluate(target)
 
     def lock_chapter(self, number: int) -> BookPlan:
         self._require_book().lock(number)
@@ -407,44 +443,64 @@ class Session:
         save_book_plan(self.book)
         return self.book
 
+    # -- chapter re-improvisation: candidates first, then adopt --------------
+    def _reimproviser(self) -> ChapterReimproviser:
+        llm = None
+        if getattr(self.provider, "name", "mock") not in ("mock", ""):
+            llm = self.provider
+        return ChapterReimproviser(
+            self.theme, self._char_list(), harmony=self.harmony,
+            story_state=self.story_state, motifs=self.motifs, llm=llm)
+
+    def reimprovise_candidates(self, number: int, *, count: int = 2,
+                               seed=None) -> List[ChapterCandidate]:
+        """Propose candidates for one chapter — does NOT modify the book."""
+        return self._reimproviser().propose(self._require_book(), number,
+                                            count=count, seed=seed)
+
+    def apply_candidate(self, candidate: ChapterCandidate) -> Tuple[BookPlan, List[int]]:
+        """Write an adopted candidate back to the BookPlan (locked fields kept)."""
+        book = self._require_book()
+        chapter = book.chapter(candidate.number)
+        if chapter is None:
+            raise ValueError(f"第 {candidate.number} 章不存在")
+        ChapterReimproviser.apply(chapter, candidate.chapter)
+        save_book_plan(book)
+        return book, book.affected_downstream(candidate.number)
+
+    def regenerate_chapters(self, numbers: List[int], *, seed=None) -> Tuple[BookPlan, List[int]]:
+        """Regenerate only the given chapters (offline candidates), keeping
+        locked chapters and locked fields intact."""
+        book = self._require_book()
+        reimproviser = self._reimproviser()
+        locked = {c.number for c in book.chapters() if c.locked}
+        done: List[int] = []
+        for n in numbers:
+            if n in locked or book.chapter(n) is None:
+                continue
+            candidates = reimproviser.propose(book, n, count=1, seed=seed)
+            if candidates:
+                ChapterReimproviser.apply(book.chapter(n), candidates[0].chapter)
+                done.append(n)
+        save_book_plan(book)
+        return book, done
+
     def reimprovise_chapter(self, number: int, *, seed=None,
                             regen: Optional[List[int]] = None) -> Tuple[BookPlan, List[int]]:
-        """Re-improvisation with a scoped impact set.
+        """Regenerate the target and (by default) its downstream chapters.
 
-        ``regen`` lists the chapters to actually regenerate; anything else keeps
-        its existing card. Locked chapters are never regenerated. With
-        ``regen=None`` the target plus all downstream chapters are regenerated.
-        Returns ``(book, regenerated_numbers)``.
+        Locked chapters and locked fields are never overwritten. Returns
+        ``(book, regenerated_numbers)``. Prefer ``reimprovise_candidates`` +
+        ``apply_candidate`` for an inspect-before-adopt flow.
         """
         book = self._require_book()
         affected = book.affected_downstream(number)
-        snapshot = {c.number: c.to_dict() for c in book.chapters()}
         locked = {c.number for c in book.chapters() if c.locked}
-
         regen_set = set(regen) if regen is not None else ({number} | set(affected))
         regen_set -= locked
         if number not in locked:
             regen_set.add(number)
-
-        OutlineExpander(self.theme, book.cast).expand(
-            book, len(book.chapters()) or 12, template=book.structure_template,
-            seed=seed if seed is not None else (self.effective_params().seed or 0))
-        for c in book.chapters():
-            saved = snapshot.get(c.number)
-            if saved is None:
-                continue
-            if c.number not in regen_set:
-                restored = ChapterPlan.from_dict(saved)
-                for field_name, value in restored.to_dict().items():
-                    setattr(c, field_name, value)
-            else:
-                # regenerated, but field-level locks are preserved
-                c.locked_fields = list(saved.get("locked_fields", []))
-                for field_name in c.locked_fields:
-                    if field_name in saved:
-                        setattr(c, field_name, saved[field_name])
-        save_book_plan(book)
-        return book, sorted(regen_set)
+        return self.regenerate_chapters(sorted(regen_set), seed=seed)
 
     def lock_field(self, number: int, field_name: str) -> BookPlan:
         self._require_book().lock_field(number, field_name)

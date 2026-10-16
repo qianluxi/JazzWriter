@@ -24,6 +24,13 @@ class BookPlan(Model):
     logline: str = ""             # 一句话核心创意
     premise: str = ""
     question: str = ""            # 故事要处理的命题
+    # -- full synopsis (so the story is understandable without the cards) --
+    synopsis: str = ""            # 完整故事梗概
+    opening_state: str = ""       # 故事开始时的主要局面
+    inciting_incident: str = ""   # 引发主线的事件
+    central_turn: str = ""        # 改变主角理解或目标的关键节点
+    climax: str = ""              # 全书高潮
+    resolution: str = ""          # 主要冲突的最终处理
     main_conflict: str = ""
     cast: List[str] = Field(default_factory=list)
     key_turns: List[str] = Field(default_factory=list)
@@ -32,6 +39,9 @@ class BookPlan(Model):
     volumes: List[VolumePlan] = Field(default_factory=list)
     chosen_idea: Optional[StoryIdea] = None
     params: Dict[str, Any] = Field(default_factory=dict)
+    constraints: List[str] = Field(default_factory=list)  # 应用的硬约束（可追溯）
+    generated_by: str = ""        # llm | offline_template
+    expected_chapters: int = 0    # 用户要求的章数（校验用）
     status: str = "candidate"
     created_at: str = ""
 
