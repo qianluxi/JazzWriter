@@ -510,15 +510,19 @@ def _read_premise(args) -> str:
 
 
 def _print_ideas(ideas) -> None:
-    table = Table(title="故事方案 · Story Hypotheses", header_style="bold")
-    for col in ("#", "标签", "因果机制", "真相", "关系", "结局", "差异度"):
+    table = Table(title="故事方案 · 五维对照", header_style="bold")
+    for col in ("#", "标签", "因果机制", "信息结构/真相", "人物关系", "结局", "主题解释", "差异度"):
         table.add_column(col)
     for i, idea in enumerate(ideas, 1):
         table.add_row(str(i), idea.label, idea.causal_mechanism, idea.truth_nature,
-                      idea.character_relation, idea.ending_direction, f"{idea.distinctness:.0%}")
+                      idea.character_relation, idea.ending_direction, idea.theme_reading,
+                      f"{idea.distinctness:.0%}")
     console.print(table)
-    for i, idea in enumerate(ideas, 1):
-        console.print(f"  [dim]{i}. {idea.rationale}[/dim]")
+    if len(ideas) > 1:
+        base = ideas[0]
+        console.print("  [dim]与方案1不同的维度：[/dim]")
+        for i, idea in enumerate(ideas[1:], 2):
+            console.print(f"    {i}: {'、'.join(idea.differentiators) or '无'}")
 
 
 def _print_chapter_map(book) -> None:
@@ -553,6 +557,7 @@ def _print_structure(report) -> None:
         "idea_uniqueness": "创意独特性", "completeness": "故事完整性",
         "causal_continuity": "因果连续性", "character_change": "人物变化",
         "chapter_contribution": "章节贡献", "foreshadowing": "伏笔与回收",
+        "relationship_evolution": "关系演变",
     }
     for k, v in report.dimensions.items():
         table.add_row(labels.get(k, k), f"{v:.0%}")
@@ -652,10 +657,15 @@ def cmd_outline(args) -> int:
         except ValueError as exc:
             console.print(f"[red]{exc}[/red]")
             return 2
+        rows = session.fuse_compare(ideas[a], ideas[b], fused)
+        ftable = Table(title="融合对照 · What the fusion changed", header_style="bold")
+        for col in ("维度", f"方案A({a + 1})", f"方案B({b + 1})", "融合采用", "取自"):
+            ftable.add_column(col)
+        for r in rows:
+            ftable.add_row(r["dimension"], r["a"], r["b"], r["fused"], r["from"])
+        console.print(ftable)
         console.print(Panel(
-            f"标签：{fused.label}\n因果机制：{fused.causal_mechanism}\n真相性质：{fused.truth_nature}\n"
-            f"关系走向：{fused.character_relation}\n结局方向：{fused.ending_direction}\n"
-            f"差异度：{fused.distinctness:.0%}\n理由：{fused.rationale}",
+            f"标签：{fused.label}\n差异度：{fused.distinctness:.0%}\n理由：{fused.rationale}",
             title="融合方案 · Fused Idea", border_style="magenta"))
         console.print("[dim]把它作为方案 1 采纳即可：`outline ... --build --pick 1`（当前实现下融合方案需在 GUI 中使用）。[/dim]")
         return 0

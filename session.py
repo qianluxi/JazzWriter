@@ -432,8 +432,21 @@ class Session:
                 "index": i, "label": idea.label,
                 "causal": idea.causal_mechanism, "truth": idea.truth_nature,
                 "relation": idea.character_relation, "ending": idea.ending_direction,
+                "theme_reading": idea.theme_reading,
                 "distinctness": idea.distinctness, "differentiators": idea.differentiators,
             })
+        return rows
+
+    @staticmethod
+    def fuse_compare(a: StoryIdea, b: StoryIdea, fused: StoryIdea) -> List[dict]:
+        dims = [("因果机制", "causal_mechanism"), ("信息结构/真相", "truth_nature"),
+                ("人物关系", "character_relation"), ("结局", "ending_direction"),
+                ("主题解释", "theme_reading")]
+        rows = []
+        for label, attr in dims:
+            av, bv, fv = getattr(a, attr), getattr(b, attr), getattr(fused, attr)
+            src = "A" if fv == av else ("B" if fv == bv else "新")
+            rows.append({"dimension": label, "a": av, "b": bv, "fused": fv, "from": src})
         return rows
 
     def build_book(self, premise: str, ideas: List[StoryIdea], *, pick: int = 0,

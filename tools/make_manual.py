@@ -106,7 +106,7 @@ def build() -> Document:
     _cjk(srun.font)
     ver = doc.add_paragraph()
     ver.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    vrun = ver.add_run("适用版本 v2.9　·　Novel Jazz Engine")
+    vrun = ver.add_run("适用版本 v2.10　·　Novel Jazz Engine")
     vrun.font.size = Pt(11)
     vrun.font.color.rgb = RGBColor.from_string("999999")
     _cjk(vrun.font)
@@ -249,6 +249,7 @@ def build() -> Document:
         "引用人物可用稳定 id、姓名或别名（系统会解析到同一人物）；主角由“核心且可作视角”的第一人确定，不依赖文件顺序。",
         "每章的人物决策/认知变化/关系变化是结构化数据，可在 GUI「卡片JSON」标签页直接编辑并保存。",
         "认知连续性：每章「认知变化」必须给出信息来源，来源不能指向不早于本章的时间；涉及作者保留的秘密时系统会提示确认揭露时机。",
+        "结构化编辑：点「编辑人物/关系变化（表单）」用简表编辑本章的决策/认知/关系变化；也可在「卡片JSON」里直接改整张卡片。",
     ])
     h2(doc, "硬约束 vs 软约束")
     bullets(doc, [
@@ -268,6 +269,8 @@ def build() -> Document:
         "局部重新即兴：先出候选并显示“改动字段”，采纳后才写回；未选中章节与锁定内容保持。",
         "导出：结构（Markdown）与故事板（Markdown/HTML）。",
     ])
+    p(doc, "创意阶段提供两种对照：“五维并排对照”（因果机制 / 信息结构·真相 / 人物关系 / 结局 / 主题解释）"
+           "与“融合对照”（融合后每个维度取自 A 还是 B）。结构评价在六维之外新增“关系演变”维度。")
 
     # -- 7 ----------------------------------------------------------------
     h1(doc, "七、局部演练：正文 / 多版本 / Jam")

@@ -60,6 +60,14 @@ ENDING = [
     "付出高昂代价后获得部分修复",
     "循环回到开头的问题，只是换了人",
 ]
+# different answers to the core question (主题解释)
+THEME_READING = [
+    "隔阂是制度造成的，个人只能学会与之共处",
+    "隔阂源于无人肯先开口，而不是任何一方",
+    "所谓真相，是活着的人选择记住的版本",
+    "救赎不来自真相本身，而来自有人愿意承担",
+    "时间不会治愈，只有人的行动才可能",
+]
 
 
 class BookPlanner:
@@ -90,6 +98,11 @@ class BookPlanner:
 
     def _relationships_brief(self) -> str:
         return self.relationships.brief(self._cast_ids())
+
+    def _chapter_cast_brief(self) -> str:
+        """Chapter-scope brief (current goal / secrets / behavior) for writers."""
+        chars = [c for c in self.characters if c.tier in ("core", "supporting")] or self.characters
+        return "\n".join(f"- {c.brief('chapter')}" for c in chars)
 
     def _primary_id(self) -> str:
         for c in self.characters:
@@ -146,6 +159,7 @@ class BookPlanner:
             truth = TRUTH[(i * 2 + 1) % kt]
             relation = RELATION[(i + 3) % kr]
             ending = ENDING[(i * 2) % ke]
+            theme_reading = THEME_READING[(i * 2 + 1) % len(THEME_READING)]
             ideas.append(StoryIdea(
                 id=f"idea{i + 1:02d}",
                 label=f"方向{chr(65 + i)} · {causal[:10]}",
@@ -154,6 +168,7 @@ class BookPlanner:
                 truth_nature=truth,
                 character_relation=relation,
                 ending_direction=ending,
+                theme_reading=theme_reading,
             ))
 
         ref = ideas[0]
@@ -161,11 +176,12 @@ class BookPlanner:
         ref.differentiators = ["基准路线"]
         ref.rationale = "作为比较基准：最直接、最容易被想到的走向。"
         dims = [("因果", "causal_mechanism"), ("真相", "truth_nature"),
-                ("关系", "character_relation"), ("结局", "ending_direction")]
+                ("关系", "character_relation"), ("结局", "ending_direction"),
+                ("主题解释", "theme_reading")]
         for idea in ideas[1:]:
             diffs = [label for label, attr in dims if getattr(idea, attr) != getattr(ref, attr)]
             idea.differentiators = diffs
-            idea.distinctness = round(len(diffs) / 4, 2)
+            idea.distinctness = round(len(diffs) / len(dims), 2)
             idea.rationale = "改变" + ("、".join(diffs) if diffs else "细节") + "，提供不同的因果与意义走向。"
         for idea in ideas:
             idea.generated_by = OFFLINE
@@ -190,7 +206,8 @@ class BookPlanner:
 
         picks = picks or {}
         defaults = {"causal_mechanism": "a", "truth_nature": "b",
-                    "character_relation": "a", "ending_direction": "b"}
+                    "character_relation": "a", "ending_direction": "b",
+                    "theme_reading": "b"}
 
         def choose(dim: str) -> str:
             src = picks.get(dim, defaults[dim])
@@ -204,10 +221,12 @@ class BookPlanner:
             truth_nature=choose("truth_nature"),
             character_relation=choose("character_relation"),
             ending_direction=choose("ending_direction"),
-            rationale=f"融合 A 的因果与关系、B 的真相与结局，形成新的故事机制。",
+            theme_reading=choose("theme_reading"),
+            rationale="融合 A 的因果与关系、B 的真相与结局，形成新的故事机制。",
         )
         ref = [a, b]
-        dims = ["causal_mechanism", "truth_nature", "character_relation", "ending_direction"]
+        dims = ["causal_mechanism", "truth_nature", "character_relation",
+                "ending_direction", "theme_reading"]
         best = 0.0
         for other in ref:
             diff = sum(1 for d in dims if getattr(fused, d) != getattr(other, d))
@@ -218,10 +237,12 @@ class BookPlanner:
     def _fuse_from_llm(self, a: StoryIdea, b: StoryIdea) -> Optional[StoryIdea]:
         prompt = (
             "把下面两个故事方案融合成一个新的、更独特的方案（不是拼接，而是取两者之长形成新的因果机制）。\n"
-            f"方案A：因果={a.causal_mechanism}；真相={a.truth_nature}；关系={a.character_relation}；结局={a.ending_direction}\n"
-            f"方案B：因果={b.causal_mechanism}；真相={b.truth_nature}；关系={b.character_relation}；结局={b.ending_direction}\n"
+            f"方案A：因果={a.causal_mechanism}；真相={a.truth_nature}；关系={a.character_relation}；"
+            f"结局={a.ending_direction}；主题解释={a.theme_reading}\n"
+            f"方案B：因果={b.causal_mechanism}；真相={b.truth_nature}；关系={b.character_relation}；"
+            f"结局={b.ending_direction}；主题解释={b.theme_reading}\n"
             '输出 JSON：{"label":"","premise":"","causal_mechanism":"","truth_nature":"",'
-            '"character_relation":"","ending_direction":"","rationale":""}'
+            '"character_relation":"","ending_direction":"","theme_reading":"","rationale":""}'
         )
         data = generate_json(self.llm, prompt)
         if not data:
@@ -234,6 +255,7 @@ class BookPlanner:
             truth_nature=str(data.get("truth_nature", "")),
             character_relation=str(data.get("character_relation", "")),
             ending_direction=str(data.get("ending_direction", "")),
+            theme_reading=str(data.get("theme_reading", "")),
             rationale=str(data.get("rationale", "由两个方案融合而成。")),
         )
         if not fused.is_viable:
@@ -313,7 +335,8 @@ class BookPlanner:
             f"请给出 {count} 个**实质不同**的故事方案。每个方案必须改变「因果机制／真相性质／人物关系走向／结局方向」中的至少一项，"
             "而不是换一种写法；且必须遵守上面的硬约束。\n"
             '输出 JSON：{"ideas":[{"label":"","premise":"","causal_mechanism":"","truth_nature":"",'
-            '"character_relation":"","ending_direction":"","rationale":""}]}'
+            '"character_relation":"","ending_direction":"","theme_reading":"","rationale":""}]}'
+            "（theme_reading = 这个方案对核心问题的不同回答）"
         )
         data = generate_json(self.llm, prompt)
         if not data or not isinstance(data.get("ideas"), list):
@@ -330,6 +353,7 @@ class BookPlanner:
                 truth_nature=str(item.get("truth_nature", "")),
                 character_relation=str(item.get("character_relation", "")),
                 ending_direction=str(item.get("ending_direction", "")),
+                theme_reading=str(item.get("theme_reading", "")),
                 rationale=str(item.get("rationale", "")),
             )
             if idea.is_viable:
@@ -338,11 +362,12 @@ class BookPlanner:
             return None
         ref = ideas[0]
         dims = [("因果", "causal_mechanism"), ("真相", "truth_nature"),
-                ("关系", "character_relation"), ("结局", "ending_direction")]
+                ("关系", "character_relation"), ("结局", "ending_direction"),
+                ("主题解释", "theme_reading")]
         for idea in ideas:
             diffs = [label for label, attr in dims if getattr(idea, attr) != getattr(ref, attr)]
             idea.differentiators = diffs
-            idea.distinctness = round(len(diffs) / 4, 2)
+            idea.distinctness = round(len(diffs) / len(dims), 2)
             idea.generated_by = "llm"
         return ideas
 
@@ -412,6 +437,7 @@ class BookPlanner:
             f"本卷目标：{meta.get('goal', '')}；高潮：{meta.get('climax', '')}；阶段结果：{meta.get('outcome', '')}\n"
             f"前文摘要：{prior_brief}\n"
             f"人物关系网络（变化须来自已定义的关系）：\n{self._relationships_brief() or '（未定义）'}\n"
+            f"各人物的章节动机（当前目标/秘密/行为倾向）：\n{self._chapter_cast_brief()}\n"
             f"硬约束（必须遵守）：{self._constraints_text()}\n"
             f"每章必须包含：function/pov/pov_character_id/characters_involved/premise/key_action/conflict/"
             f"outcome/stakes/info_change/character_change/threads/motifs/hook_from/hook_to/summary，"

@@ -21,7 +21,9 @@ import tkinter as tk
 import tkinter.font as tkfont
 from tkinter import messagebox, ttk
 
-from core.chapter_plan import apply_text, to_text
+from core.chapter_plan import (apply_text, format_decisions, format_knowledge,
+                               format_relationships, parse_decisions, parse_knowledge,
+                               parse_relationships, to_text)
 from core.improviser import STYLES
 from engine.outline_expander import TEMPLATE_LABELS
 from engine.semantic_similarity import MODES as EVAL_MODES
@@ -202,6 +204,7 @@ class App:
         self._btn(p, "校验结构", self.on_validate)
         self._btn(p, "保存章节卡片编辑", self.on_save_card)
         self._btn(p, "保存 JSON 到选中章（嵌套字段）", self.on_save_card_json)
+        self._btn(p, "编辑人物/关系变化（表单）", self.on_edit_participation)
         self._btn(p, "重新即兴选中章（可选范围）", self.on_reimprovise)
         self._btn(p, "锁定 / 解锁选中章", self.on_toggle_lock)
         self._btn(p, "导出结构 Markdown", self.on_export)
@@ -375,19 +378,28 @@ class App:
 
     def _render_ideas(self, ideas) -> None:
         self.ideas = ideas
-        lines = []
+        self._set_tab("创意候选", self._ideas_text(ideas))
+        self.nb.select(0)
+
+    def _ideas_text(self, ideas) -> str:
+        base = ideas[0] if ideas else None
+        lines = ["五维对照（≠ 表示与方案1不同）", ""]
         for i, idea in enumerate(ideas, 1):
             lines.append(f"【方案 {i}】{idea.label}　差异度 {idea.distinctness:.0%}")
-            lines.append(f"  因果机制：{idea.causal_mechanism}")
-            lines.append(f"  真相性质：{idea.truth_nature}")
-            lines.append(f"  关系走向：{idea.character_relation}")
-            lines.append(f"  结局方向：{idea.ending_direction}")
-            if idea.rationale:
-                lines.append(f"  理由：{idea.rationale}")
+            for label, value, ref in (
+                ("因果机制", idea.causal_mechanism, base.causal_mechanism if base else ""),
+                ("信息结构/真相", idea.truth_nature, base.truth_nature if base else ""),
+                ("人物关系", idea.character_relation, base.character_relation if base else ""),
+                ("结局", idea.ending_direction, base.ending_direction if base else ""),
+                ("主题解释", idea.theme_reading, base.theme_reading if base else ""),
+            ):
+                mark = "≠ " if (base and i > 1 and value != ref) else "  "
+                lines.append(f"    {mark}{label}：{value}")
+            if i > 1 and idea.differentiators:
+                lines.append(f"      与方案1的差异：{'、'.join(idea.differentiators)}")
             lines.append("")
         lines.append("在“采纳方案#”里选择编号，然后点「采纳并展开全书结构」。")
-        self._set_tab("创意候选", "\n".join(lines))
-        self.nb.select(0)
+        return "\n".join(lines)
 
     def on_fuse(self) -> None:
         if self.session is None:
@@ -403,10 +415,20 @@ class App:
 
         def work():
             fused = self.session.fuse_ideas(self.ideas, a, b, seed=snap["seed"])
-            ideas = list(self.ideas) + [fused]
-            return ideas
+            rows = self.session.fuse_compare(self.ideas[a], self.ideas[b], fused)
+            return list(self.ideas) + [fused], rows
 
-        self._async(work, self._render_ideas, label="融合方案…")
+        self._async(work, self._render_fuse, label="融合方案…")
+
+    def _render_fuse(self, result) -> None:
+        ideas, rows = result
+        self.ideas = ideas
+        fuse_lines = ["融合对照（“取自”表示该维度来自哪个方案）", ""]
+        for r in rows:
+            fuse_lines.append(f"  {r['dimension']}：A={r['a']}　|　B={r['b']}　|　融合={r['fused']}（取自 {r['from']}）")
+        fuse_lines += ["", f"融合方案已加入候选（编号 {len(ideas)}）。", ""]
+        self._set_tab("创意候选", "\n".join(fuse_lines) + self._ideas_text(ideas))
+        self.nb.select(0)
 
     def on_build(self) -> None:
         if self.session is None:
@@ -777,6 +799,52 @@ class App:
         widget.delete("1.0", "end")
         widget.insert("1.0", text)
 
+    def on_edit_participation(self) -> None:
+        if self.session is None or self.session.book is None:
+            messagebox.showinfo("尚无结构", "请先展开全书结构。")
+            return
+        number = self._selected_chapter()
+        if number is None:
+            messagebox.showinfo("选择章节", "请在结构树里选中一章。")
+            return
+        ch = self.session.book.chapter(number)
+        win = tk.Toplevel(self.root)
+        win.title(f"第 {number} 章 · 人物 / 关系变化")
+        win.transient(self.root)
+        win.grab_set()
+        win.geometry("740x580")
+
+        def section(label, hint, initial):
+            ttk.Label(win, text=f"{label}　（{hint}）", justify="left",
+                      wraplength=710).pack(anchor="w", padx=10, pady=(8, 2))
+            box = tk.Text(win, height=4, wrap="word")
+            box.pack(fill="x", padx=10)
+            box.insert("1.0", initial)
+            return box
+
+        dtext = section("人物决策", "每行：character_id | 决策 | 动机",
+                        format_decisions(ch.character_decisions))
+        ktext = section("认知变化", "每行：character_id | 变化 | 来源 | fact_id(可空)",
+                        format_knowledge(ch.knowledge_changes))
+        rtext = section("关系变化", "每行：a,b | 变化 | 原因",
+                        format_relationships(ch.relationship_changes))
+
+        def save():
+            self.session.update_chapter(number, {
+                "character_decisions": [d.to_dict() for d in parse_decisions(dtext.get("1.0", "end"))],
+                "knowledge_changes": [k.to_dict() for k in parse_knowledge(ktext.get("1.0", "end"))],
+                "relationship_changes": [r.to_dict() for r in parse_relationships(rtext.get("1.0", "end"))],
+            })
+            self._populate_tree(self.session.book)
+            self._set_card(to_text(self.session.book.chapter(number)))
+            self.status_var.set(f"已保存第 {number} 章人物/关系变化")
+            win.destroy()
+
+        btns = ttk.Frame(win)
+        btns.pack(fill="x", pady=8)
+        ttk.Button(btns, text="保存", command=save).pack(side="right", padx=6)
+        ttk.Button(btns, text="取消", command=win.destroy).pack(side="right")
+
     def on_save_card_json(self) -> None:
         if self.session is None or self.session.book is None:
             messagebox.showinfo("尚无结构", "请先展开全书结构。")
@@ -834,6 +902,7 @@ class App:
             "idea_uniqueness": "创意独特性", "completeness": "故事完整性",
             "causal_continuity": "因果连续性", "character_change": "人物变化",
             "chapter_contribution": "章节贡献", "foreshadowing": "伏笔与回收",
+            "relationship_evolution": "关系演变",
         }
         lines = ["【结构校验（硬问题，优先看这里）】"]
         lines += ([f"  · {i}" for i in report.validation] or ["  · 未发现硬问题"])

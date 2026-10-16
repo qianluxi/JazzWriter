@@ -298,6 +298,11 @@ openai 与 opencode 两个后端都可用；不设任何 Key 时仍可用 `mock`
 - **两层校验**：结构硬校验（缺章/编号/断链/未回收线索）+ 可选**叙事审阅**（事件合理性/人物选择/冲突升级/
   结局回应，给出依据与章号）；界面**问题清单优先于分数**。
 - **创意过期保护**：方案记录前提指纹，前提改动后 `ideas_stale` 会提示方案过期。
+- **五维并排对照**：方案在「因果机制 / 信息结构·真相 / 人物关系 / 结局 / 主题解释」上并排比较（新增 `StoryIdea.theme_reading`；CLI 表格 + GUI 对照）。
+- **融合对照**：`Session.fuse_compare` 显示融合后每个维度**取自 A 还是 B**（CLI/GUI 均可见）。
+- **章节级人物上下文**：`BookPlanner._chapter_cast_brief()` 把每个人的「当前目标/秘密/行为倾向」注入逐卷提示；离线生成的人物决策动机优先用 `current_goal`。
+- **结构化编辑控件**：GUI「编辑人物/关系变化（表单）」用简表编辑 `character_decisions / knowledge_changes / relationship_changes`（另有 JSON 面板）；解析函数在 `core/chapter_plan.py`。
+- **结构评价新增维度**：`relationship_evolution（关系演变）`——已定义关系的实际变化比例 + 变化是否带原因。
 
 ## 人物与关系网络（V2.6）
 
@@ -393,6 +398,7 @@ data/
 - V0.7 ✅ Jam Session：Director + Soloist + Observer + Editor 顺序合奏（Editor 候选打分排序）。
 - **V2.3 ✅ 记忆与偏离检测 + 故事板导出（动机时间线 / 人物弧线 / 伏笔面板）**。
 - **V2.4 ✅ 重新即兴候选/采纳 + 硬约束注入规划 + 分阶段严格章数校验 + 全书梗概 + 两层校验 + 创意过期保护**。
+- **V2.10 ✅ 创意五维对照 + 融合对照 + 章节级人物上下文 + 结构化编辑控件 + 关系演变维度**。
 - **V2.9 ✅ 人物认知连续性 + 注入链路测试**：认知变化必须有来源、来源不得来自未来、涉及秘密时提示揭露时机；新增“关系网络注入 / 世界约束注入”验证测试。
 - **V2.8 ✅ 人物链路贯通**：类型化 `CharacterDecision/KnowledgeChange/RelationshipChange`；`primary_character_id` + `resolve_character`（id/姓名/别名）+ 数据完整性检查；关系孤立子图诊断；人物上下文分场景；章节卡片 JSON 编辑器（GUI/CLI）。
 - **V2.7 ✅ 每章关系变化 + 关系连续性校验**：章节 `relationship_changes`（pair/change/cause）；校验未定义关系变化、缺原因、关系从未变化、未知人物 id。

@@ -120,7 +120,7 @@ class OutlineExpander:
             info_line = self._info(fn, reveal_threads)
             decisions = [CharacterDecision(character_id=pov_id,
                                            decision=self._action(fn, pov, turn),
-                                           motivation=pov_char.desire or "")]
+                                           motivation=pov_char.current_goal or pov_char.desire or "")]
             knowledge = ([KnowledgeChange(character_id=pov_id, change=info_line,
                                           source=f"第 {i + 1} 章")]
                          if info_line else [])

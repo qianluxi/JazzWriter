@@ -22,6 +22,7 @@ DIMENSIONS = {
     "character_change": "人物变化",
     "chapter_contribution": "章节贡献",
     "foreshadowing": "伏笔与回收",
+    "relationship_evolution": "关系演变",
 }
 
 
@@ -109,6 +110,27 @@ class StructureEvaluator:
             foreshadow = 0.4
             notes.append("未检测到明确线索，伏笔维度参考价值有限。")
 
+        # 7. relationship evolution
+        rel_evo = 0.5
+        rels = getattr(self.relationships, "relationships", None) if self.relationships else None
+        if rels:
+            changed_pairs = set()
+            total_changes = 0
+            with_cause = 0
+            for c in chapters:
+                for rc in c.relationship_changes:
+                    total_changes += 1
+                    if rc.cause:
+                        with_cause += 1
+                    pair = rc.pair or []
+                    if len(pair) == 2:
+                        changed_pairs.add((pair[0], pair[1]))
+                        changed_pairs.add((pair[1], pair[0]))
+            changed = sum(1 for r in rels if (r.source_id, r.target_id) in changed_pairs)
+            ratio = changed / len(rels)
+            cause_ok = (with_cause / total_changes) if total_changes else 0.0
+            rel_evo = tu.clamp(0.6 * ratio + 0.4 * cause_ok)
+
         dims = {
             "idea_uniqueness": idea,
             "completeness": completeness,
@@ -116,6 +138,7 @@ class StructureEvaluator:
             "character_change": character,
             "chapter_contribution": contribution,
             "foreshadowing": foreshadow,
+            "relationship_evolution": rel_evo,
         }
         overall = sum(dims.values()) / len(dims)
 

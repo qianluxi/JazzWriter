@@ -124,6 +124,59 @@ def to_text(ch: ChapterPlan) -> str:
     return "\n".join(lines)
 
 
+def format_decisions(items: List[CharacterDecision]) -> str:
+    return "\n".join(f"{d.character_id} | {d.decision} | {d.motivation}" for d in items)
+
+
+def parse_decisions(text: str) -> List[CharacterDecision]:
+    out: List[CharacterDecision] = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = [p.strip() for p in line.split("|")]
+        if len(parts) >= 2:
+            out.append(CharacterDecision(character_id=parts[0], decision=parts[1],
+                                         motivation=parts[2] if len(parts) > 2 else ""))
+    return out
+
+
+def format_knowledge(items: List[KnowledgeChange]) -> str:
+    return "\n".join(f"{k.character_id} | {k.change} | {k.source} | {k.fact_id}" for k in items)
+
+
+def parse_knowledge(text: str) -> List[KnowledgeChange]:
+    out: List[KnowledgeChange] = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = [p.strip() for p in line.split("|")]
+        if len(parts) >= 2:
+            out.append(KnowledgeChange(character_id=parts[0], change=parts[1],
+                                       source=parts[2] if len(parts) > 2 else "",
+                                       fact_id=parts[3] if len(parts) > 3 else ""))
+    return out
+
+
+def format_relationships(items: List[RelationshipChange]) -> str:
+    return "\n".join(f"{','.join(r.pair)} | {r.change} | {r.cause}" for r in items)
+
+
+def parse_relationships(text: str) -> List[RelationshipChange]:
+    out: List[RelationshipChange] = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = [p.strip() for p in line.split("|")]
+        pair = [x.strip() for x in parts[0].replace("，", ",").split(",") if x.strip()]
+        if len(pair) == 2:
+            out.append(RelationshipChange(pair=pair, change=parts[1] if len(parts) > 1 else "",
+                                          cause=parts[2] if len(parts) > 2 else ""))
+    return out
+
+
 def apply_text(ch: ChapterPlan, text: str) -> ChapterPlan:
     """Update a chapter card from edited ``字段：值`` text (partial edits OK)."""
     for raw in text.splitlines():

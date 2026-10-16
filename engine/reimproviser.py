@@ -120,8 +120,12 @@ class ChapterReimproviser:
         if self.llm is None or getattr(self.llm, "name", "") in ("mock", ""):
             return None
         ops = operators or [k for k, _ in OPERATOR_VARIANTS]
+        pov_char = next((c for c in self.characters.values()
+                         if c.name == base.pov or c.effective_id == base.pov), None)
+        pov_brief = f"视角人物章节动机（当前目标/秘密/行为倾向）：{pov_char.brief('chapter')}\n" if pov_char else ""
         prompt = (
             f"为长篇小说重新即兴【第 {base.number} 章】，给出 {count} 个**实质不同**的候选方案。\n"
+            f"{pov_brief}"
             f"原章节卡片：功能={base.function}；POV={base.pov}；冲突={base.conflict}；"
             f"结果={base.outcome}；信息变化={base.info_change}；人物变化={base.character_change}；"
             f"线索={base.threads}；意象={base.motifs}\n"
