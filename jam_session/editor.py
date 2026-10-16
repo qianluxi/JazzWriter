@@ -29,6 +29,9 @@ class JamResult:
     ranked_observer: List[Dict] = field(default_factory=list)
     notes: List[str] = field(default_factory=list)
     removed: List[str] = field(default_factory=list)
+    debate: List[Dict] = field(default_factory=list)      # round-2 exchanges
+    attribution: List[Dict] = field(default_factory=list)  # which role contributed what
+    rounds: int = 1
 
     def to_dict(self) -> dict:
         return {
@@ -41,12 +44,15 @@ class JamResult:
             "ranked_observer": self.ranked_observer,
             "notes": self.notes,
             "removed": self.removed,
+            "debate": self.debate,
+            "attribution": self.attribution,
+            "rounds": self.rounds,
         }
 
 
 class Editor:
     def run(self, brief: JamBrief, solo: List[str], observer: List[str], *,
-            story_state=None, llm=None) -> JamResult:
+            story_state=None, llm=None, rebuttals=None, rounds: int = 1) -> JamResult:
         forbidden = story_state.forbidden_reveals(brief.pov) if story_state else []
         removed: List[str] = []
 
@@ -68,6 +74,8 @@ class Editor:
         notes.append("提示：并非每次即兴都要制造伏笔或冲突；平淡、失败的行动也可保留。")
         if solo_kept:
             notes.append(f"Editor：保留 {len(solo_kept)} 个独奏候选并排序，采用得分最高者。")
+        if rebuttals:
+            notes.append(f"Editor：经过一轮反驳（{len(rebuttals)} 条），采用修订后的方向，并标注来源。")
 
         chosen_solo = solo_kept[0]["text"] if solo_kept else "（无有效独奏动作）"
         chosen_obs = observer_kept[0]["text"] if observer_kept else "（无环境细节）"
@@ -85,10 +93,13 @@ class Editor:
             proposal = llm_proposal
             chosen = llm_proposal
 
+        attribution = [{"source": "soloist", "idea": chosen_solo},
+                       {"source": "observer", "idea": chosen_obs}]
         return JamResult(brief=brief, solo=solo, observer=observer,
                          proposal=proposal, chosen=chosen,
                          ranked_solo=solo_kept, ranked_observer=observer_kept,
-                         notes=notes, removed=removed)
+                         notes=notes, removed=removed,
+                         debate=list(rebuttals or []), attribution=attribution, rounds=rounds)
 
     @staticmethod
     def rank(items: List[str]) -> List[Dict]:

@@ -18,6 +18,7 @@ from core.story_state import StoryState
 from core.theme import Theme
 from engine.composer import Take
 from engine.evaluator import Evaluation
+from engine.planning_llm import generate_json
 from improvisation.motif_engine import STAGE_HINT, STAGES
 from improvisation.operator_engine import _BY_KEY
 
@@ -55,11 +56,13 @@ class ScenePlanner:
         characters: Dict[str, Character],
         motifs: MotifLibrary,
         story_state: Optional[StoryState] = None,
+        llm=None,
     ) -> None:
         self.theme = theme
         self.characters = list(characters.values())
         self.motifs = motifs
         self.story_state = story_state or StoryState()
+        self.llm = llm
 
     def _pov(self, rng: random.Random) -> Character:
         return rng.choice(self.characters) if self.characters else Character(name="他")
@@ -82,6 +85,10 @@ class ScenePlanner:
         count: int = 3,
         seed: Optional[int] = None,
     ) -> List[SceneSkeleton]:
+        via_llm = self._from_llm(count)
+        if via_llm:
+            return via_llm
+
         rng = random.Random(seed if seed is not None else random.SystemRandom().randint(1, 2**31 - 1))
         skeletons: List[SceneSkeleton] = []
 
@@ -148,6 +155,39 @@ class ScenePlanner:
 
         rng.shuffle(skeletons)
         return skeletons[:count]
+
+    def _from_llm(self, count: int) -> Optional[List[SceneSkeleton]]:
+        if self.llm is None or getattr(self.llm, "name", "") in ("mock", ""):
+            return None
+        threads = [t.question for t in self.story_state.open_thread_list()]
+        recent = [e.event for e in self.story_state.recent_events[-3:]]
+        cast = "、".join(c.name for c in self.characters)
+        prompt = (
+            f"为长篇小说提出 {count} 个可探索的下一章场景骨架。\n"
+            f"命题：{self.theme.question or self.theme.title}\n人物：{cast}\n"
+            f"可用意象：{'、'.join(self.motifs.names()) or '无'}\n"
+            f"未解决线索：{threads}\n近期事件：{recent}\n"
+            "每个骨架包含：目标/POV/表层行动/潜在冲突/即兴方向/动机变奏/信息边界/退出点。"
+            "不要写正文；允许平淡、失败或没有结果的场景。\n"
+            '输出 JSON：{"scenes":[{"goal":"","pov":"","surface_action":"","latent_conflict":"",'
+            '"improv_direction":"","motif_variation":"","info_boundary":"","exit_point":""}]}'
+        )
+        data = generate_json(self.llm, prompt)
+        if not data or not isinstance(data.get("scenes"), list):
+            return None
+        out: List[SceneSkeleton] = []
+        for s in data["scenes"][:count]:
+            if not isinstance(s, dict):
+                continue
+            out.append(SceneSkeleton(
+                goal=str(s.get("goal", "")), pov=str(s.get("pov", "")),
+                surface_action=str(s.get("surface_action", "")),
+                latent_conflict=str(s.get("latent_conflict", "")),
+                improv_direction=str(s.get("improv_direction", "")),
+                motif_variation=str(s.get("motif_variation", "")),
+                info_boundary=str(s.get("info_boundary", "")),
+                exit_point=str(s.get("exit_point", "")), source="llm"))
+        return out or None
 
     def _motif_line(self) -> str:
         motif = self.motifs.all()[0] if self.motifs.all() else None

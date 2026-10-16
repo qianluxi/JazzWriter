@@ -28,6 +28,7 @@ from engine.reimproviser import ChapterCandidate, ChapterReimproviser
 from engine.plot_validator import PlotValidator
 from engine.report import write_reports
 from engine.scene_planner import ScenePlanner, SceneSkeleton
+from engine.vector_store import VectorStore
 from engine.structure_evaluator import StructureEvaluator, StructureReport
 from engine.variation import Variation
 from feedback.conductor import Advice, Conductor
@@ -653,7 +654,7 @@ class Session:
 
     # -- Jam Session (V0.7) -------------------------------------------------
     def jam(self, scene: str, *, pov=None, chapter_number=None,
-            use_llm: bool = True) -> JamResult:
+            use_llm: bool = True, rounds: int = 2) -> JamResult:
         llm = None
         if use_llm and getattr(self.provider, "name", "mock") not in ("mock", ""):
             llm = self.provider
@@ -661,7 +662,7 @@ class Session:
         session = JamSession(
             self.theme, self.characters, book=self.book,
             story_state=self.story_state, motifs=self.motifs, llm=llm)
-        return session.run(scene, pov=pov_name, chapter_number=chapter_number)
+        return session.run(scene, pov=pov_name, chapter_number=chapter_number, rounds=rounds)
 
     def jam_to_take(self, jam: JamResult, *, pov=None, style: str = "现实主义",
                     jazz_mode=None, seed=None, overrides=None, chapter: int = 1,
@@ -682,6 +683,22 @@ class Session:
 
     def find_related(self, text: str, k: int = 3):
         return self.memory_index().query(text, k)
+
+    def vector_memory(self, *, rebuild: bool = False,
+                      use_embedding: Optional[bool] = None) -> VectorStore:
+        from store import VECTOR_STORE_PATH
+        if use_embedding is None:
+            use_embedding = self.eval_mode in ("embedding", "hybrid")
+        if not rebuild:
+            store = VectorStore.load(VECTOR_STORE_PATH, use_embedding=use_embedding)
+            if len(store):
+                return store
+        store = VectorStore(use_embedding=use_embedding).rebuild_from_book(self._require_book())
+        store.save(VECTOR_STORE_PATH)
+        return store
+
+    def vector_search(self, text: str, *, k: int = 3, rebuild: bool = False):
+        return self.vector_memory(rebuild=rebuild).query(text, k=k)
 
     def deviation_report(self) -> DeviationReport:
         book = self._require_book()
@@ -763,8 +780,13 @@ class Session:
         *,
         count: int = 3,
         seed: Optional[int] = None,
+        use_llm: bool = True,
     ) -> List[SceneSkeleton]:
-        planner = ScenePlanner(self.theme, self.characters, self.motifs, self.story_state)
+        llm = None
+        if use_llm and getattr(self.provider, "name", "mock") not in ("mock", ""):
+            llm = self.provider
+        planner = ScenePlanner(self.theme, self.characters, self.motifs,
+                               self.story_state, llm=llm)
         return planner.plan(take, evaluation, count=count, seed=seed)
 
     # -- motif bookkeeping --------------------------------------------------

@@ -26,6 +26,34 @@ class Soloist:
             moves.append(f"内在矛盾显形：{character.contradiction}，在行动里露出裂口。")
         return moves
 
+    def respond(self, rebuttals: List[str], character: Character,
+                prior: List[str], llm=None) -> List[str]:
+        """Round-2: revise the proposals in light of the Observer's rebuttals."""
+        via = self._respond_llm(rebuttals, character, prior, llm)
+        if via:
+            return via
+        name = character.name or "主角"
+        out: List[str] = []
+        for i, p in enumerate(prior, 1):
+            out.append(f"修订{i}：{p} → 改成 {name} 的一个具体、可拍摄的动作，不解释，允许失败。")
+        return out or [f"修订：{name}用一个具体动作代替解释。"]
+
+    def _respond_llm(self, rebuttals: List[str], character: Character,
+                     prior: List[str], llm) -> Optional[List[str]]:
+        if llm is None or getattr(llm, "name", "") in ("mock", ""):
+            return None
+        prompt = (
+            "你是即兴小说的『独奏者』。观察者对你的候选提出了反驳，请**修订**你的方向："
+            "更具体、不解释、允许失败与偏离。不要写正文。\n"
+            f"人物：{character.name}；欲望={character.desire}；恐惧={character.fear}\n"
+            f"原候选：{prior}\n观察者反驳：{rebuttals}\n"
+            '输出 JSON：{"items":[""]}'
+        )
+        data = generate_json(llm, prompt)
+        if data and isinstance(data.get("items"), list):
+            return [str(x) for x in data["items"] if str(x).strip()]
+        return None
+
     def _from_llm(self, brief: JamBrief, character: Character, llm) -> Optional[List[str]]:
         if llm is None or getattr(llm, "name", "") in ("mock", ""):
             return None

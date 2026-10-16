@@ -756,7 +756,8 @@ def cmd_jam(args) -> int:
         console.print("[red]缺少场景。[/red]")
         return 2
     result = session.jam(scene, pov=args.pov, chapter_number=args.chapter,
-                         use_llm=not getattr(args, "no_llm", False))
+                         use_llm=not getattr(args, "no_llm", False),
+                         rounds=getattr(args, "rounds", 2))
     console.print(Panel(
         f"目标：{result.brief.goal}\n方向：{result.brief.direction}\n"
         f"约束：" + ("；".join(result.brief.constraints) or "（无）"),
@@ -771,6 +772,16 @@ def cmd_jam(args) -> int:
     if result.removed:
         body += "\n\n被排除（疑似提前揭露）：\n" + "\n".join(f"· {r}" for r in result.removed)
     console.print(Panel(body, title="编辑 · Editor 提案", border_style="magenta"))
+    if result.debate:
+        lines = [f"R{r['round']} {r['actor']}：{r['content']}" for r in result.debate]
+        console.print(Panel("\n".join(lines), title=f"反驳与修订（{result.rounds} 轮）", border_style="yellow"))
+    if result.attribution:
+        at = Table(title="贡献归因 · Attribution", header_style="bold")
+        at.add_column("来源", justify="right")
+        at.add_column("采用的想法")
+        for a in result.attribution:
+            at.add_row(a["source"], a["idea"][:50])
+        console.print(at)
 
     if args.render:
         take, evaluation = session.jam_to_take(
@@ -814,6 +825,27 @@ def cmd_evaluate(args) -> int:
             text = "---".join(parts[2:]).strip()
     evaluation = session.evaluator(args.pov).evaluate(text)
     _show_evaluation(evaluation)
+    return 0
+
+
+def cmd_memory(args) -> int:
+    session = _build_session(args)
+    try:
+        if args.query:
+            results = session.vector_search(args.query, k=args.k, rebuild=args.rebuild)
+            table = Table(title=f"向量检索 · {args.query[:20]}", header_style="bold")
+            for col in ("相似度", "类型", "章", "内容"):
+                table.add_column(col)
+            for score, item in results:
+                table.add_row(f"{score:.0%}", item.kind, str(item.number), item.text[:40])
+            console.print(table)
+            return 0
+        store = session.vector_memory(rebuild=args.rebuild)
+        console.print(f"[green]向量记忆[/green] backend={store.backend}　条目={len(store)}")
+        console.print("[dim]用 `memory --query \"...\"` 检索；`memory --rebuild` 从当前结构重建。[/dim]")
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        return 2
     return 0
 
 
@@ -1157,6 +1189,7 @@ def build_parser() -> argparse.ArgumentParser:
     jm.add_argument("--render", action="store_true", help="用 Editor 提案渲染正文")
     jm.add_argument("--no-save", action="store_true")
     jm.add_argument("--no-llm", dest="no_llm", action="store_true", help="强制确定性（不使用模型）")
+    jm.add_argument("--rounds", type=int, default=2, help="合奏轮数（≥2 启用反驳辩论）")
     _add_jazz_options(jm)
     jm.set_defaults(func=cmd_jam)
 
@@ -1171,6 +1204,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("motifs", help="查看动机追踪").set_defaults(func=cmd_motifs)
     sub.add_parser("chars", help="查看人物库、使用情况与关系网络").set_defaults(func=cmd_chars)
+
+    mem = sub.add_parser("memory", help="向量记忆：重建/检索章节语义")
+    mem.add_argument("--rebuild", action="store_true", help="从当前结构重建并保存")
+    mem.add_argument("--query", default=None, help="按语义检索最相近的章节")
+    mem.add_argument("--k", type=int, default=3)
+    mem.set_defaults(func=cmd_memory)
 
     i = sub.add_parser("init", help="写入示例数据文件")
     i.add_argument("--force", action="store_true")

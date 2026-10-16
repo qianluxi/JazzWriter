@@ -303,6 +303,10 @@ openai 与 opencode 两个后端都可用；不设任何 Key 时仍可用 `mock`
 - **章节级人物上下文**：`BookPlanner._chapter_cast_brief()` 把每个人的「当前目标/秘密/行为倾向」注入逐卷提示；离线生成的人物决策动机优先用 `current_goal`。
 - **结构化编辑控件**：GUI「编辑人物/关系变化（表单）」用简表编辑 `character_decisions / knowledge_changes / relationship_changes`（另有 JSON 面板）；解析函数在 `core/chapter_plan.py`。
 - **结构评价新增维度**：`relationship_evolution（关系演变）`——已定义关系的实际变化比例 + 变化是否带原因。
+- **向量记忆**：`engine/vector_store.py`——可持久化的语义向量库（有嵌入模型时用 embedding，否则回退 CJK 词向量），`output/vector_store.json`；CLI `memory [--rebuild] [--query "…"]`，`Session.vector_memory()/vector_search()`。
+- **交互式故事板**：`report` 导出的 `story_report.html` 现为**可交互**页面——按视角筛选、关键词搜索、点击章节查看卡片（决策/认知/关系）；GUI「导出故事板（交互式 HTML）」会直接打开。
+- **Jam 多轮辩论**：`JamSession.run(rounds≥2)`——Observer **反驳** Soloist → Soloist **修订** → Editor **归因**（谁贡献了哪个想法）；`jam --rounds N`。
+- **场景骨架由模型生成**：`ScenePlanner` 支持 LLM 路径（失败/离线回退规则法）；`Session.plan(use_llm=True)`。
 
 ## 人物与关系网络（V2.6）
 
@@ -398,6 +402,7 @@ data/
 - V0.7 ✅ Jam Session：Director + Soloist + Observer + Editor 顺序合奏（Editor 候选打分排序）。
 - **V2.3 ✅ 记忆与偏离检测 + 故事板导出（动机时间线 / 人物弧线 / 伏笔面板）**。
 - **V2.4 ✅ 重新即兴候选/采纳 + 硬约束注入规划 + 分阶段严格章数校验 + 全书梗概 + 两层校验 + 创意过期保护**。
+- **V2.11 ✅ 向量记忆（持久化/embedding 可选）+ 交互式故事板 + Jam 多轮辩论 + 模型生成场景骨架**。
 - **V2.10 ✅ 创意五维对照 + 融合对照 + 章节级人物上下文 + 结构化编辑控件 + 关系演变维度**。
 - **V2.9 ✅ 人物认知连续性 + 注入链路测试**：认知变化必须有来源、来源不得来自未来、涉及秘密时提示揭露时机；新增“关系网络注入 / 世界约束注入”验证测试。
 - **V2.8 ✅ 人物链路贯通**：类型化 `CharacterDecision/KnowledgeChange/RelationshipChange`；`primary_character_id` + `resolve_character`（id/姓名/别名）+ 数据完整性检查；关系孤立子图诊断；人物上下文分场景；章节卡片 JSON 编辑器（GUI/CLI）。

@@ -106,7 +106,7 @@ def build() -> Document:
     _cjk(srun.font)
     ver = doc.add_paragraph()
     ver.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    vrun = ver.add_run("适用版本 v2.10　·　Novel Jazz Engine")
+    vrun = ver.add_run("适用版本 v2.11　·　Novel Jazz Engine")
     vrun.font.size = Pt(11)
     vrun.font.color.rgb = RGBColor.from_string("999999")
     _cjk(vrun.font)
@@ -284,6 +284,10 @@ def build() -> Document:
     h2(doc, "Jam Session")
     p(doc, "点「Jam Session（导演/独奏/观察/编辑）」：四角色分工协作，"
            "Editor 会对候选打分排序、剔除与已知事实冲突者，整合成一个场景提案（不自动升级为正式设定）。")
+    p(doc, "多轮合奏（rounds≥2）：观察者会先**反驳**独奏者（太笼统/直说主题/复述既有冲突），"
+           "独奏者据此**修订**，Editor 再**归因**（哪个想法来自谁）。命令行：`jam --rounds 2`。")
+    p(doc, "「导出故事板」产出的是**可交互 HTML**：可按视角筛选、搜索关键词、点击章节查看卡片；"
+           "向量记忆用 `python main.py memory --rebuild` / `--query` 做章节语义检索。")
 
     # -- 8 ----------------------------------------------------------------
     h1(doc, "八、接入真实模型")
@@ -308,6 +312,8 @@ def build() -> Document:
     table(doc, ["命令", "作用"], [
         ["python main.py status", "查看主题/人物/和声/动机/故事状态"],
         ["python main.py chars", "查看人物库、使用情况与关系网络"],
+        ["python main.py memory --rebuild", "从当前结构重建向量记忆（语义检索库）"],
+        ["python main.py memory --query \"...\"", "按语义检索最相近的章节"],
         ["python main.py outline \"前提\" --branches 3", "发散故事方案"],
         ["python main.py outline \"前提\" --fuse 1 2", "融合两个方案"],
         ["python main.py outline \"前提\" --build --pick 2 --chapters 12 --template mystery", "采纳并展开结构"],

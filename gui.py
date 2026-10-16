@@ -209,7 +209,7 @@ class App:
         self._btn(p, "锁定 / 解锁选中章", self.on_toggle_lock)
         self._btn(p, "导出结构 Markdown", self.on_export)
         self._btn(p, "叙事偏离检测", self.on_deviation)
-        self._btn(p, "导出故事板（md/html）", self.on_report)
+        self._btn(p, "导出故事板（交互式 HTML）", self.on_report)
 
         ttk.Label(p, text="② 局部演练（可选）", foreground="#06c").pack(anchor="w", pady=(6, 0))
         self._btn(p, "按结构渲染正文", self.on_render)

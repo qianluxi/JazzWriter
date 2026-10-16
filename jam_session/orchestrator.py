@@ -40,7 +40,7 @@ class JamSession:
         return Character(name=pov or "主角")
 
     def run(self, scene: str, *, pov: Optional[str] = None,
-            chapter_number: Optional[int] = None) -> JamResult:
+            chapter_number: Optional[int] = None, rounds: int = 2) -> JamResult:
         character = self._character(pov)
 
         chapter = None
@@ -57,6 +57,16 @@ class JamSession:
         observer: List[str] = Observer().run(
             brief, story_state=self.story_state, motifs=motif_names, llm=self.llm)
 
+        debate: List[dict] = []
+        if rounds >= 2:
+            rebuttals = Observer().rebut(solo, brief, self.llm)
+            for r in rebuttals:
+                debate.append({"round": 2, "actor": "observer", "content": r})
+            solo = Soloist().respond(rebuttals, character, solo, self.llm)
+            for r in solo:
+                debate.append({"round": 2, "actor": "soloist", "content": r})
+
         result: JamResult = Editor().run(
-            brief, solo, observer, story_state=self.story_state, llm=self.llm)
+            brief, solo, observer, story_state=self.story_state, llm=self.llm,
+            rebuttals=debate, rounds=rounds)
         return result
