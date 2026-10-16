@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 from typing import List, Optional
@@ -623,6 +624,22 @@ def cmd_outline(args) -> int:
         console.print(f"[green]已更新第 {args.edit} 章卡片[/green]")
         console.print(Panel(to_text(chapter), title=f"第 {args.edit} 章", border_style="cyan"))
         return 0
+    if args.edit_json is not None:
+        if not args.file:
+            console.print("[red]--edit-json 需要配合 --file 指定 JSON。[/red]")
+            return 2
+        try:
+            book = session._require_book()
+            data = json.loads(Path(args.file).read_text(encoding="utf-8"))
+        except (ValueError, json.JSONDecodeError) as exc:
+            console.print(f"[red]{exc}[/red]")
+            return 2
+        if book.chapter(args.edit_json) is None:
+            console.print(f"[red]第 {args.edit_json} 章不存在[/red]")
+            return 2
+        session.update_chapter(args.edit_json, data)
+        console.print(f"[green]已用 JSON 更新第 {args.edit_json} 章[/green]")
+        return 0
     if args.fuse:
         premise = _read_premise(args)
         if not premise:
@@ -1086,6 +1103,8 @@ def build_parser() -> argparse.ArgumentParser:
                     help="融合两个故事方案（编号从 1 起）")
     ol.add_argument("--edit", type=int, default=None,
                     help="用 --file 的卡片文本(字段：值)更新指定章")
+    ol.add_argument("--edit-json", dest="edit_json", type=int, default=None,
+                    help="用 --file 的 JSON 更新指定章（支持嵌套人物/关系字段）")
     ol.add_argument("--reimprovise", type=int, default=None, help="为指定章生成即兴候选")
     ol.add_argument("--adopt", type=int, default=None, help="采纳第 K 个重新即兴候选")
     ol.add_argument("--regen", default=None,

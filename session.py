@@ -119,18 +119,49 @@ class Session:
         session.book = load_book_plan()
         return session
 
+    def resolve_character(self, identifier: str) -> Character:
+        """Resolve a character by name, stable id, or alias."""
+        if not self.characters:
+            raise ValueError("no characters defined in data/characters.yaml")
+        if identifier in self.characters:
+            return self.characters[identifier]
+        low = str(identifier).strip().lower()
+        for character in self.characters.values():
+            if low in (character.effective_id.lower(), character.name.lower()):
+                return character
+            if any(a.lower() == low for a in character.aliases):
+                return character
+        raise KeyError(f"unknown character: {identifier}")
+
     def character(self, name: Optional[str] = None) -> Character:
         if not self.characters:
             raise ValueError("no characters defined in data/characters.yaml")
         if name is None:
             return next(iter(self.characters.values()))
-        if name in self.characters:
-            return self.characters[name]
-        lowered = name.strip().lower()
-        for character in self.characters.values():
-            if character.name.lower() == lowered:
-                return character
-        raise KeyError(f"unknown character: {name}")
+        return self.resolve_character(name)
+
+    def setup_warnings(self) -> List[str]:
+        """Data-integrity warnings: duplicate ids/names, dangling relationship
+        endpoints, missing POV-eligible core character."""
+        warns: List[str] = []
+        chars = self._char_list()
+        ids = [c.effective_id for c in chars]
+        dup_ids = sorted({i for i in ids if ids.count(i) > 1})
+        if dup_ids:
+            warns.append(f"人物 id 重复：{dup_ids}")
+        names = [c.name for c in chars]
+        dup_names = sorted({n for n in names if names.count(n) > 1})
+        if dup_names:
+            warns.append(f"人物姓名重复：{dup_names}")
+        known = set(ids)
+        for r in self.relationships.relationships:
+            if r.source_id not in known:
+                warns.append(f"关系端点不存在：{r.source_id}（{r.source_id}↔{r.target_id}）")
+            if r.target_id not in known:
+                warns.append(f"关系端点不存在：{r.target_id}（{r.source_id}↔{r.target_id}）")
+        if not any(c.tier == "core" and c.pov for c in chars):
+            warns.append("没有可作为 POV 的核心人物（core 且 pov=true）")
+        return warns
 
     # -- assembly -----------------------------------------------------------
     def improviser(self, pov: Optional[str] = None) -> Improviser:
@@ -433,9 +464,9 @@ class Session:
         chapter = book.chapter(number)
         if chapter is None:
             raise ValueError(f"第 {number} 章不存在")
-        for key, value in fields.items():
-            if hasattr(chapter, key):
-                setattr(chapter, key, value)
+        merged = ChapterPlan.from_dict({**chapter.to_dict(), **fields})
+        for key in merged.to_dict():
+            setattr(chapter, key, getattr(merged, key))
         save_book_plan(book)
         return book
 
@@ -469,11 +500,11 @@ class Session:
             if self.book is not None:
                 for c in self.book.chapters():
                     for rc in c.relationship_changes:
-                        pair = rc.get("pair") or []
+                        pair = rc.pair or []
                         if {r.source_id, r.target_id} == set(pair):
                             changes.append({"chapter": c.number,
-                                            "change": rc.get("change", ""),
-                                            "cause": rc.get("cause", "")})
+                                            "change": rc.change,
+                                            "cause": rc.cause})
             rows.append({"pair": [r.source_id, r.target_id], "type": r.type, "changes": changes})
         return rows
 

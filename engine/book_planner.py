@@ -18,7 +18,8 @@ from typing import Any, Dict, List, Optional
 
 from core.book_plan import BookPlan
 from core.character import Character
-from core.chapter_plan import ChapterPlan
+from core.chapter_plan import (ChapterPlan, CharacterDecision, KnowledgeChange,
+                               RelationshipChange)
 from core.harmony import Harmony
 from core.relationship import RelationshipMap
 from core.story_idea import StoryIdea
@@ -89,6 +90,16 @@ class BookPlanner:
 
     def _relationships_brief(self) -> str:
         return self.relationships.brief(self._cast_ids())
+
+    def _primary_id(self) -> str:
+        for c in self.characters:
+            if c.tier == "core" and getattr(c, "pov", True):
+                return c.effective_id
+        for c in self.characters:
+            if getattr(c, "pov", True):
+                return c.effective_id
+        ids = self._cast_ids()
+        return ids[0] if ids else ""
 
     # -- constraints (world rules + story state) ----------------------------
     def constraints(self) -> List[str]:
@@ -257,6 +268,7 @@ class BookPlanner:
             main_conflict=f"围绕「{idea.causal_mechanism[:20]}」；{idea.character_relation[:16]}",
             cast=self._cast(),
             cast_ids=self._cast_ids(),
+            primary_character_id=self._primary_id(),
             key_turns=turns,
             ending=idea.ending_direction,
             structure_template=template,
@@ -350,7 +362,12 @@ class BookPlanner:
             character_change=str(citem.get("character_change", "")),
             pov_character_id=str(citem.get("pov_character_id", "")),
             characters_involved=[str(x) for x in citem.get("characters_involved", [])],
-            relationship_changes=[rc for rc in citem.get("relationship_changes", []) if isinstance(rc, dict)],
+            character_decisions=[CharacterDecision(**d) for d in citem.get("character_decisions", [])
+                                 if isinstance(d, dict)],
+            knowledge_changes=[KnowledgeChange(**k) for k in citem.get("knowledge_changes", [])
+                               if isinstance(k, dict)],
+            relationship_changes=[RelationshipChange(**r) for r in citem.get("relationship_changes", [])
+                                  if isinstance(r, dict)],
             threads=[str(x) for x in citem.get("threads", [])],
             motifs=[str(x) for x in citem.get("motifs", [])],
             hook_from=str(citem.get("hook_from", "")),
@@ -399,11 +416,16 @@ class BookPlanner:
             f"每章必须包含：function/pov/pov_character_id/characters_involved/premise/key_action/conflict/"
             f"outcome/stakes/info_change/character_change/threads/motifs/hook_from/hook_to/summary，"
             f"冲突与结果不得为空。\n"
+            "另外每章填写人物参与：character_decisions（character_id/decision/motivation）、"
+            "knowledge_changes（character_id/change/source，注明信息来源章）。\n"
             "若某章让两个已知人物的关系发生变化，请填 relationship_changes（pair=[id,id]，change，cause）；"
             "pair 必须来自上面已定义的关系网络。\n"
             '只输出 JSON：{"chapters":[{"title":"","function":"","pov":"","pov_character_id":"",'
             '"characters_involved":[],"premise":"","key_action":"","conflict":"","outcome":"","stakes":"",'
-            '"info_change":"","character_change":"","relationship_changes":[{"pair":["",""],"change":"","cause":""}],'
+            '"info_change":"","character_change":"",'
+            '"character_decisions":[{"character_id":"","decision":"","motivation":""}],'
+            '"knowledge_changes":[{"character_id":"","change":"","source":""}],'
+            '"relationship_changes":[{"pair":["",""],"change":"","cause":""}],'
             '"threads":[],"motifs":[],"hook_from":"","hook_to":"","summary":""}]}'
             f"（chapters 数组长度必须等于 {want}）"
         )

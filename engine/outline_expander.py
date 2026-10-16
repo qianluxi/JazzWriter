@@ -12,7 +12,8 @@ import random
 from typing import Dict, List, Optional
 
 from core.book_plan import BookPlan
-from core.chapter_plan import ChapterPlan
+from core.chapter_plan import (ChapterPlan, CharacterDecision, KnowledgeChange,
+                               RelationshipChange)
 from core.character import Character
 from core.relationship import RelationshipMap
 from core.theme import Theme
@@ -59,6 +60,7 @@ class OutlineExpander:
         self.cast = [c.name for c in self.characters]
         self.relationships = relationships or RelationshipMap()
         self._pov_characters = [c for c in self.characters if getattr(c, "pov", True)] or self.characters
+        self._by_id = {c.effective_id: c for c in self.characters}
 
     def expand(
         self,
@@ -95,7 +97,9 @@ class OutlineExpander:
             turn = turns[i % len(turns)]
             pov_char = povs[i]
             if template in MULTI_POV_TEMPLATES and fn in CONVERGE_FUNCS:
-                pov_char = self._pov_characters[0]  # converge on the protagonist
+                # converge on the declared protagonist (not list order)
+                pov_char = self._by_id.get(book.primary_character_id,
+                                           self._pov_characters[0])
             pov = pov_char.name
             pov_id = pov_char.effective_id
             involved = [pov_id]
@@ -114,10 +118,12 @@ class OutlineExpander:
             outcome = self._outcome(fn, turn)
             hook_to = self._hook(fn, turn, i, chapter_count)
             info_line = self._info(fn, reveal_threads)
-            decisions = [{"character_id": pov_id,
-                          "decision": self._action(fn, pov, turn),
-                          "motivation": pov_char.desire or ""}]
-            knowledge = [{"character_id": pov_id, "learned": info_line}] if info_line else []
+            decisions = [CharacterDecision(character_id=pov_id,
+                                           decision=self._action(fn, pov, turn),
+                                           motivation=pov_char.desire or "")]
+            knowledge = ([KnowledgeChange(character_id=pov_id, change=info_line,
+                                          source=f"第 {i + 1} 章")]
+                         if info_line else [])
             rel_changes = self._relationship_changes(fn, involved)
 
             chapters.append(ChapterPlan(
@@ -209,8 +215,8 @@ class OutlineExpander:
             if r.source_id in inv and r.target_id in inv:
                 change = r.possible_transition or (
                     f"围绕「{(r.conflict or '共同处境')[:14]}」，关系出现松动")
-                return [{"pair": [r.source_id, r.target_id], "change": change,
-                         "cause": r.pressure_point or ""}]
+                return [RelationshipChange(pair=[r.source_id, r.target_id], change=change,
+                                           cause=r.pressure_point or "")]
         return []
 
     def _hook(self, fn: str, turn: str, i: int, n: int) -> str:

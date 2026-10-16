@@ -18,9 +18,9 @@ class RelationshipGenerationTest(unittest.TestCase):
         changes = [rc for c in book.chapters() for rc in c.relationship_changes]
         self.assertTrue(changes, "turning-point chapters should move a relationship")
         for rc in changes:
-            pair = tuple(rc["pair"])
+            pair = tuple(rc.pair)
             self.assertIn(pair, defined)
-            self.assertTrue(rc.get("change"))
+            self.assertTrue(rc.change)
 
     def test_changes_view(self):
         session = _multi_session()

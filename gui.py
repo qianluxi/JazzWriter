@@ -15,6 +15,7 @@ Run::
 
 from __future__ import annotations
 
+import json
 import threading
 import tkinter as tk
 import tkinter.font as tkfont
@@ -200,6 +201,7 @@ class App:
         self._btn(p, "采纳并展开全书结构", self.on_build)
         self._btn(p, "校验结构", self.on_validate)
         self._btn(p, "保存章节卡片编辑", self.on_save_card)
+        self._btn(p, "保存 JSON 到选中章（嵌套字段）", self.on_save_card_json)
         self._btn(p, "重新即兴选中章（可选范围）", self.on_reimprovise)
         self._btn(p, "锁定 / 解锁选中章", self.on_toggle_lock)
         self._btn(p, "导出结构 Markdown", self.on_export)
@@ -237,7 +239,7 @@ class App:
         self.nb.pack(fill="both", expand=True)
         self.tabs: dict[str, tk.Text] = {}
 
-        for name in ["创意候选", "全书结构", "章节卡片", "人物", "Jam", "正文", "即兴决策", "评价", "建议", "状态", "历史"]:
+        for name in ["创意候选", "全书结构", "章节卡片", "卡片JSON", "人物", "Jam", "正文", "即兴决策", "评价", "建议", "状态", "历史"]:
             frame = ttk.Frame(self.nb)
             txt = tk.Text(frame, wrap="word", state="disabled", padx=8, pady=6)
             sb = ttk.Scrollbar(frame, command=txt.yview)
@@ -760,6 +762,7 @@ class App:
         ch = self.session.book.chapter(number)
         if ch:
             self._set_card(to_text(ch))
+            self._set_json_card(json.dumps(ch.to_dict(), ensure_ascii=False, indent=2))
 
     # -- formatters ---------------------------------------------------------
     def _set_card(self, text: str) -> None:
@@ -767,6 +770,34 @@ class App:
         widget.configure(state="normal")
         widget.delete("1.0", "end")
         widget.insert("1.0", text)
+
+    def _set_json_card(self, text: str) -> None:
+        widget = self.tabs["卡片JSON"]
+        widget.configure(state="normal")
+        widget.delete("1.0", "end")
+        widget.insert("1.0", text)
+
+    def on_save_card_json(self) -> None:
+        if self.session is None or self.session.book is None:
+            messagebox.showinfo("尚无结构", "请先展开全书结构。")
+            return
+        number = self._selected_chapter()
+        if number is None:
+            messagebox.showinfo("选择章节", "请在结构树里选中一章。")
+            return
+        try:
+            data = json.loads(self.tabs["卡片JSON"].get("1.0", "end"))
+        except json.JSONDecodeError as exc:
+            messagebox.showerror("JSON 错误", str(exc))
+            return
+        try:
+            self.session.update_chapter(number, data)
+        except Exception as exc:  # noqa: BLE001
+            messagebox.showerror("更新失败", str(exc))
+            return
+        self._populate_tree(self.session.book)
+        self._set_card(to_text(self.session.book.chapter(number)))
+        self.status_var.set(f"已保存第 {number} 章 JSON")
 
     def _cards_text(self, book) -> str:
         return "\n\n".join(to_text(ch) for ch in book.chapters())

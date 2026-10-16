@@ -309,7 +309,11 @@ openai 与 opencode 两个后端都可用；不设任何 Key 时仍可用 `mock`
 - 核心人物与关系会**注入 `BookPlanner`**（故事创意/全书蓝图），不再只是姓名列表。
 - 每章新增人物参与记录：`pov_character_id / characters_involved / character_decisions / knowledge_changes / relationship_changes`。
 - **每章关系变化**：转折类章节会依据 `relationships.yaml` 的 `pressure_point / possible_transition` 生成 `relationship_changes`（pair/change/cause）；模型路径同样要求填写，且 pair 必须来自已定义关系。
-- 校验器新增：**人物使用检查**（登记却未参与任何章节）、**关系连续性检查**（未定义关系发生变化、变化缺少原因、已定义关系全书从未变化）、未知人物 id 引用。
+- 校验器新增：**人物使用检查**（登记却未参与任何章节）、**关系连续性检查**（未定义关系发生变化、变化缺少原因、已定义关系全书从未变化）、未知人物 id 引用、**关系网络孤立子图**提示。
+- **类型化数据结构**：`CharacterDecision / KnowledgeChange / RelationshipChange`（各有 character_id + 可追溯的 motivation/source/cause），离线与 LLM 两条路径使用同一份契约。
+- **稳定引用**：`BookPlan.primary_character_id`（不再依赖人物文件顺序）；`Session.resolve_character()` 支持按 **id / 姓名 / 别名** 解析；`Session.setup_warnings()` 检查 id 重复、关系端点缺失、无可用 POV 核心人物。
+- **嵌套字段编辑**：GUI「卡片JSON」标签页可直接编辑并保存整张章节卡片（含人物决策/认知/关系变化）；CLI `outline --edit-json N --file card.json`。
+- **人物上下文按任务分场景**：`Character.brief("story"/"chapter")` 与 `as_prompt()` 覆盖信念/记忆/当前目标/盲点/秘密/能力/限制等（避免把所有档案塞进每次提示）。
 - `python main.py chars` 查看人物库、使用情况与关系网络（GUI 有「人物」标签页）。
 
 > 注意：不同人物层级数量只是设计建议——短篇可用 2–3 人，群像可更多。
@@ -388,6 +392,7 @@ data/
 - V0.7 ✅ Jam Session：Director + Soloist + Observer + Editor 顺序合奏（Editor 候选打分排序）。
 - **V2.3 ✅ 记忆与偏离检测 + 故事板导出（动机时间线 / 人物弧线 / 伏笔面板）**。
 - **V2.4 ✅ 重新即兴候选/采纳 + 硬约束注入规划 + 分阶段严格章数校验 + 全书梗概 + 两层校验 + 创意过期保护**。
+- **V2.8 ✅ 人物链路贯通**：类型化 `CharacterDecision/KnowledgeChange/RelationshipChange`；`primary_character_id` + `resolve_character`（id/姓名/别名）+ 数据完整性检查；关系孤立子图诊断；人物上下文分场景；章节卡片 JSON 编辑器（GUI/CLI）。
 - **V2.7 ✅ 每章关系变化 + 关系连续性校验**：章节 `relationship_changes`（pair/change/cause）；校验未定义关系变化、缺原因、关系从未变化、未知人物 id。
 - **V2.6 ✅ 人物与关系网络**：人物 id/层级/可选 POV + 叙事驱动字段（盲点/秘密/能力/限制/当前目标）；`relationships.yaml` 关系网络；核心人物与关系注入规划器；章节人物参与记录；人物使用检查 + `chars` 命令 + GUI「人物」页。
 - **V2.5 ✅ 质量门禁回归测试**：结构校验补章号/缺章/卷内顺序检查；`SingleFlight` 单任务守卫；端到端门禁

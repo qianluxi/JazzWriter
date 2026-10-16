@@ -47,8 +47,24 @@ class Character(Model):
         """Stable identifier used across plans (falls back to the name)."""
         return self.id or self.name
 
-    def brief(self) -> str:
-        """Compact narrative-driver summary for structure planning."""
+    def brief(self, scope: str = "story") -> str:
+        """Compact narrative-driver summary, scoped to the planning task.
+
+        - ``story``   : drives for whole-book planning (worldview/arc/relations)
+        - ``chapter`` : drives for a single chapter (goal/secrets/rules)
+        """
+        if scope == "chapter":
+            parts = [f"{self.name}({self.effective_id})"]
+            for label, value in (("当前目标", self.current_goal), ("欲望", self.desire),
+                                 ("恐惧", self.fear)):
+                if value:
+                    parts.append(f"{label}={value}")
+            if self.secrets:
+                parts.append("秘密=" + "、".join(self.secrets))
+            if self.rules:
+                parts.append("行为倾向=" + "、".join(self.rules))
+            return "；".join(parts)
+
         parts = [f"{self.name}({self.effective_id},{self.tier})"]
         if self.role:
             parts.append(f"角色={self.role}")
@@ -56,6 +72,8 @@ class Character(Model):
             parts.append(f"欲望={self.desire}")
         if self.fear:
             parts.append(f"恐惧={self.fear}")
+        if self.worldview:
+            parts.append(f"信念={self.worldview}")
         if self.blind_spots:
             parts.append("盲点=" + "、".join(self.blind_spots))
         if self.contradiction:
@@ -92,9 +110,14 @@ class Character(Model):
             ("世界观", self.worldview),
             ("内在矛盾", self.contradiction),
             ("声音/语感", self.voice),
+            ("当前目标", self.current_goal),
         ):
             if value:
                 parts.append(f"  {label}: {value}")
+        for label, items in (("认知盲点", self.blind_spots), ("秘密", self.secrets),
+                             ("能力", self.capabilities), ("限制", self.constraints)):
+            if items:
+                parts.append(f"  {label}: " + "、".join(items))
         if self.arc_from or self.arc_to:
             parts.append(f"  人物弧: {self.arc_from} → {self.arc_to}")
         for rule in self.rules:

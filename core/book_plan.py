@@ -34,6 +34,7 @@ class BookPlan(Model):
     main_conflict: str = ""
     cast: List[str] = Field(default_factory=list)          # display names
     cast_ids: List[str] = Field(default_factory=list)      # stable character ids
+    primary_character_id: str = ""                          # protagonist / convergence POV
     key_turns: List[str] = Field(default_factory=list)
     ending: str = ""
     structure_template: str = "linear_causality"

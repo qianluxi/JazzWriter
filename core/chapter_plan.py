@@ -17,6 +17,27 @@ from core.base import Model
 STATUS = ("candidate", "accepted", "locked")
 
 
+class CharacterDecision(Model):
+    """A character makes a choice in a chapter (traceable to motivation)."""
+    character_id: str = ""
+    decision: str = ""
+    motivation: str = ""
+
+
+class KnowledgeChange(Model):
+    """A character learns something (traceable to a source)."""
+    character_id: str = ""
+    change: str = ""
+    source: str = ""
+
+
+class RelationshipChange(Model):
+    """A relationship shifts between two characters (traceable to a cause)."""
+    pair: List[str] = Field(default_factory=list)
+    change: str = ""
+    cause: str = ""
+
+
 class ChapterPlan(Model):
     number: int
     title: str = ""
@@ -32,9 +53,9 @@ class ChapterPlan(Model):
     # -- character participation (V2.6) --
     pov_character_id: str = ""                              # 视角人物的稳定 id
     characters_involved: List[str] = Field(default_factory=list)   # 参与本章的人物 id
-    character_decisions: List[Dict] = Field(default_factory=list)  # {character_id, decision, motivation}
-    knowledge_changes: List[Dict] = Field(default_factory=list)    # {character_id, learned}
-    relationship_changes: List[Dict] = Field(default_factory=list)  # {pair, change, cause}
+    character_decisions: List[CharacterDecision] = Field(default_factory=list)
+    knowledge_changes: List[KnowledgeChange] = Field(default_factory=list)
+    relationship_changes: List[RelationshipChange] = Field(default_factory=list)
     threads: List[str] = Field(default_factory=list)   # 涉及的线索 id/名
     motifs: List[str] = Field(default_factory=list)    # 涉及的意象
     hook_from: str = ""           # 与上一章的因果入口

@@ -65,7 +65,7 @@ class PlotValidator:
                 if c.pov_character_id:
                     refs.add(c.pov_character_id)
                 for rc in c.relationship_changes:
-                    refs.update(rc.get("pair", []) or [])
+                    refs.update(rc.pair or [])
                 unknown = sorted(r for r in refs if r and r not in known)
                 if unknown:
                     issues.append(Issue("high", "unknown_character",
@@ -78,7 +78,7 @@ class PlotValidator:
             changed_pairs = set()
             for c in chapters:
                 for rc in c.relationship_changes:
-                    pair = rc.get("pair") or []
+                    pair = rc.pair or []
                     if len(pair) != 2:
                         continue
                     p = (pair[0], pair[1])
@@ -87,13 +87,38 @@ class PlotValidator:
                     if p not in defined:
                         issues.append(Issue("medium", "relationship",
                                             f"第 {c.number} 章发生了未定义的关系变化：{pair}", c.number))
-                    if not rc.get("cause"):
+                    if not rc.cause:
                         issues.append(Issue("low", "relationship",
                                             f"第 {c.number} 章的关系变化缺少原因（cause）", c.number))
             for r in rels:
                 if r.source_id in known and r.target_id in known and (r.source_id, r.target_id) not in changed_pairs:
                     issues.append(Issue("medium", "relationship",
                                         f"关系 {r.source_id}↔{r.target_id} 在全书从未发生变化"))
+
+            # isolated relationship groups (structure is a deliberate choice, so
+            # only warn, never fail)
+            if known:
+                parent = {cid: cid for cid in known}
+
+                def find(x):
+                    while parent[x] != x:
+                        parent[x] = parent[parent[x]]
+                        x = parent[x]
+                    return x
+
+                for r in rels:
+                    if r.source_id in known and r.target_id in known:
+                        parent[find(r.source_id)] = find(r.target_id)
+                groups = {}
+                for cid in known:
+                    groups.setdefault(find(cid), set()).add(cid)
+                if len(groups) > 1:
+                    primary = book.primary_character_id
+                    isolated = [sorted(g) for g in groups.values() if primary not in g]
+                    if isolated:
+                        issues.append(Issue("low", "relationship_isolation",
+                                            f"存在与主角隔离的人物关系组：{isolated}"
+                                            "（若为有意设计可忽略；否则需给出与主线的接触/信息传递机制）"))
 
         for ch in chapters:
             missing = [f for f, v in (("起因", ch.premise), ("冲突", ch.conflict),

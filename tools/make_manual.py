@@ -106,7 +106,7 @@ def build() -> Document:
     _cjk(srun.font)
     ver = doc.add_paragraph()
     ver.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    vrun = ver.add_run("适用版本 v2.7　·　Novel Jazz Engine")
+    vrun = ver.add_run("适用版本 v2.8　·　Novel Jazz Engine")
     vrun.font.size = Pt(11)
     vrun.font.color.rgb = RGBColor.from_string("999999")
     _cjk(vrun.font)
@@ -244,8 +244,10 @@ def build() -> Document:
     p(doc, "关系网络比继续给人加形容词更重要：它决定“谁必须合作、谁可能互相阻碍、一个人的选择如何代价化另一个人”。")
     bullets(doc, [
         "每章可记录关系变化（谁与谁 / 如何变 / 因为什么）；转折类章节会依据关系里的“压力点/可能走向”自动生成。",
-        "校验会提示：未定义的关系发生了变化、关系变化缺少原因、已定义的关系在全书中从未发生变化。",
+        "校验会提示：未定义的关系发生了变化、关系变化缺少原因、已定义的关系在全书中从未发生变化，以及“与主角隔离的人物关系组”。",
         "用 python main.py chars 或 GUI「人物」页可查看每条关系在哪些章发生变化。",
+        "引用人物可用稳定 id、姓名或别名（系统会解析到同一人物）；主角由“核心且可作视角”的第一人确定，不依赖文件顺序。",
+        "每章的人物决策/认知变化/关系变化是结构化数据，可在 GUI「卡片JSON」标签页直接编辑并保存。",
     ])
     h2(doc, "硬约束 vs 软约束")
     bullets(doc, [
@@ -310,6 +312,7 @@ def build() -> Document:
         ["python main.py outline --lock-field 3 conflict", "锁定第 3 章的 conflict 字段"],
         ["python main.py outline --reimprovise 5", "生成第 5 章候选（不覆盖）"],
         ["python main.py outline --reimprovise 5 --adopt 1 --regen all", "采纳候选并重生成后续"],
+        ["python main.py outline --edit-json 3 --file card.json", "用 JSON 更新第 3 章（支持嵌套人物/关系字段）"],
         ["python main.py outline --export", "导出结构 Markdown"],
         ["python main.py book --from-plan", "按结构渲染正文"],
         ["python main.py jam \"场景\" --pov 林 --render", "Jam 合奏并渲染"],
