@@ -6,6 +6,7 @@ score, e.g. "线索『证据体系有缺陷』只在第 2 章出现，缺少推�
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
@@ -27,7 +28,7 @@ class Issue:
 
 
 class PlotValidator:
-    def validate(self, book: BookPlan, relationships=None) -> List[Issue]:
+    def validate(self, book: BookPlan, relationships=None, story_state=None) -> List[Issue]:
         issues: List[Issue] = []
         chapters = book.chapters()
         if not chapters:
@@ -171,5 +172,29 @@ class PlotValidator:
         povs = {c.pov for c in chapters if c.pov}
         if len(book.cast) > 1 and len(povs) == 1:
             issues.append(Issue("low", "pov", "有多个主要人物，但全书只使用了一个视角。"))
+
+        # knowledge continuity: no knowing without a source, no source from the future
+        secret_ids = set()
+        if story_state is not None:
+            try:
+                secret_ids = {f.id for f in story_state.facts("secret")}
+            except Exception:  # noqa: BLE001
+                secret_ids = set()
+        for c in chapters:
+            for kc in c.knowledge_changes:
+                who = kc.character_id or "?"
+                if not kc.source:
+                    issues.append(Issue("low", "knowledge",
+                                        f"第 {c.number} 章 {who} 的认知变化缺少信息来源(source)", c.number))
+                else:
+                    nums = [int(x) for x in re.findall(r"第\s*(\d+)\s*章", kc.source)]
+                    if nums and min(nums) >= c.number:
+                        issues.append(Issue("medium", "knowledge",
+                                            f"第 {c.number} 章 {who} 的信息来源指向不早于本章的时间（{kc.source}）",
+                                            c.number))
+                if kc.fact_id and kc.fact_id in secret_ids:
+                    issues.append(Issue("low", "knowledge",
+                                        f"第 {c.number} 章通过认知变化涉及秘密 {kc.fact_id}，请确认揭露时机",
+                                        c.number))
 
         return issues

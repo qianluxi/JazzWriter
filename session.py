@@ -490,7 +490,8 @@ class Session:
             raise ValueError("尚无 BookPlan")
         llm = self.provider if getattr(self.provider, "name", "mock") not in ("mock", "") else None
         return StructureEvaluator(reviewer=NarrativeReviewer(llm),
-                                  relationships=self.relationships).evaluate(target)
+                                  relationships=self.relationships,
+                                  story_state=self.story_state).evaluate(target)
 
     def relationship_changes_view(self) -> List[dict]:
         """Per-relationship chapter changes (for the continuity view)."""

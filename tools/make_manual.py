@@ -106,7 +106,7 @@ def build() -> Document:
     _cjk(srun.font)
     ver = doc.add_paragraph()
     ver.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    vrun = ver.add_run("适用版本 v2.8　·　Novel Jazz Engine")
+    vrun = ver.add_run("适用版本 v2.9　·　Novel Jazz Engine")
     vrun.font.size = Pt(11)
     vrun.font.color.rgb = RGBColor.from_string("999999")
     _cjk(vrun.font)
@@ -248,6 +248,7 @@ def build() -> Document:
         "用 python main.py chars 或 GUI「人物」页可查看每条关系在哪些章发生变化。",
         "引用人物可用稳定 id、姓名或别名（系统会解析到同一人物）；主角由“核心且可作视角”的第一人确定，不依赖文件顺序。",
         "每章的人物决策/认知变化/关系变化是结构化数据，可在 GUI「卡片JSON」标签页直接编辑并保存。",
+        "认知连续性：每章「认知变化」必须给出信息来源，来源不能指向不早于本章的时间；涉及作者保留的秘密时系统会提示确认揭露时机。",
     ])
     h2(doc, "硬约束 vs 软约束")
     bullets(doc, [

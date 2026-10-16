@@ -49,9 +49,11 @@ class StructureReport:
 
 
 class StructureEvaluator:
-    def __init__(self, reviewer: Optional[NarrativeReviewer] = None, relationships=None) -> None:
+    def __init__(self, reviewer: Optional[NarrativeReviewer] = None, relationships=None,
+                 story_state=None) -> None:
         self.reviewer = reviewer
         self.relationships = relationships
+        self.story_state = story_state
 
     def evaluate(self, book: BookPlan) -> StructureReport:
         chapters = book.chapters()
@@ -117,7 +119,9 @@ class StructureEvaluator:
         }
         overall = sum(dims.values()) / len(dims)
 
-        validation = [i.message for i in PlotValidator().validate(book, relationships=self.relationships)]
+        validation = [i.message for i in
+                      PlotValidator().validate(book, relationships=self.relationships,
+                                               story_state=self.story_state)]
         reviewer = self.reviewer or NarrativeReviewer()
         review = [f.to_dict() for f in reviewer.review(book)]
         if book.structure_template in OPEN_TEMPLATES:

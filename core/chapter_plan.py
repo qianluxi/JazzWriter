@@ -28,7 +28,8 @@ class KnowledgeChange(Model):
     """A character learns something (traceable to a source)."""
     character_id: str = ""
     change: str = ""
-    source: str = ""
+    source: str = ""       # where it was learned, e.g. "第5章 对话"
+    fact_id: str = ""      # optional link to a story_state fact (for continuity)
 
 
 class RelationshipChange(Model):
