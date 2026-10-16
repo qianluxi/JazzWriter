@@ -305,7 +305,8 @@ class BookPlanner:
         if llm_book is not None:
             return llm_book
         book = OutlineExpander(self.theme, self.characters,
-                               relationships=self.relationships).expand(
+                               relationships=self.relationships,
+                               harmony=self.harmony, story_state=self.story_state).expand(
             book, chapters, template=template,
             seed=seed if seed is not None else (self.params.seed or 0),
         )
@@ -450,7 +451,7 @@ class BookPlanner:
             '"characters_involved":[],"premise":"","key_action":"","conflict":"","outcome":"","stakes":"",'
             '"info_change":"","character_change":"",'
             '"character_decisions":[{"character_id":"","decision":"","motivation":""}],'
-            '"knowledge_changes":[{"character_id":"","change":"","source":""}],'
+            '"knowledge_changes":[{"character_id":"","change":"","source":"具体信息（对话/证据/事件），不要只写章号","fact_id":""}],'
             '"relationship_changes":[{"pair":["",""],"change":"","cause":""}],'
             '"threads":[],"motifs":[],"hook_from":"","hook_to":"","summary":""}]}'
             f"（chapters 数组长度必须等于 {want}）"

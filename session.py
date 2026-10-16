@@ -73,6 +73,7 @@ class Session:
         motif_state_path: Optional[Path] = None,
         book: Optional[BookPlan] = None,
         relationships: Optional[RelationshipMap] = None,
+        data_dir: Optional[Path] = None,
     ) -> None:
         self.theme = theme
         self.harmony = harmony
@@ -86,6 +87,12 @@ class Session:
         self.motif_state_path = motif_state_path
         self.book: Optional[BookPlan] = book
         self.relationships: RelationshipMap = relationships or RelationshipMap()
+        # project-scoped output paths (None -> store defaults)
+        self.data_dir: Optional[Path] = Path(data_dir) if data_dir else None
+        self.book_plan_path: Optional[Path] = (self.data_dir / "book_plan.json") if self.data_dir else None
+        self.vector_store_path: Optional[Path] = (self.data_dir / "vector_store.json") if self.data_dir else None
+        self.outline_path: Optional[Path] = (self.data_dir / "book_outline.md") if self.data_dir else None
+        self.report_dir: Optional[Path] = self.data_dir
 
     # -- construction -------------------------------------------------------
     @classmethod
@@ -116,8 +123,9 @@ class Session:
             eval_mode=eval_mode,
             motif_state_path=base / "motif_state.yaml",
             relationships=relationships,
+            data_dir=base,
         )
-        session.book = load_book_plan()
+        session.book = load_book_plan(session.book_plan_path)
         return session
 
     def resolve_character(self, identifier: str) -> Character:
@@ -458,7 +466,7 @@ class Session:
         book = self._planner(seed=seed, use_llm=use_llm).build(
             premise, idea, chapters=chapters, template=template, seed=seed)
         self.book = book
-        save_book_plan(book)
+        save_book_plan(book, self.book_plan_path)
         return book
 
     def fuse_ideas(self, ideas: List[StoryIdea], a: int, b: int, *,
@@ -471,7 +479,7 @@ class Session:
         return fused
 
     def save_book(self) -> Path:
-        return save_book_plan(self._require_book())
+        return save_book_plan(self._require_book(), self.book_plan_path)
 
     def update_chapter(self, number: int, fields: Dict[str, Any]) -> BookPlan:
         book = self._require_book()
@@ -481,7 +489,7 @@ class Session:
         merged = ChapterPlan.from_dict({**chapter.to_dict(), **fields})
         for key in merged.to_dict():
             setattr(chapter, key, getattr(merged, key))
-        save_book_plan(book)
+        save_book_plan(book, self.book_plan_path)
         return book
 
     def expand_book(self, *, chapters=None, template=None, seed=None, force: bool = False) -> BookPlan:
@@ -492,10 +500,11 @@ class Session:
                 "如确需重写请传 force=True，或改用按章重新即兴（reimprovise_candidates）。")
         n = chapters or len(book.chapters()) or 12
         OutlineExpander(self.theme, self._char_list(),
-                        relationships=self.relationships).expand(
+                        relationships=self.relationships,
+                        harmony=self.harmony, story_state=self.story_state).expand(
             book, n, template=template or book.structure_template,
             seed=seed if seed is not None else (self.effective_params().seed or 0))
-        save_book_plan(book)
+        save_book_plan(book, self.book_plan_path)
         return book
 
     def validate_book(self, book: Optional[BookPlan] = None) -> StructureReport:
@@ -525,12 +534,12 @@ class Session:
 
     def lock_chapter(self, number: int) -> BookPlan:
         self._require_book().lock(number)
-        save_book_plan(self.book)
+        save_book_plan(self.book, self.book_plan_path)
         return self.book
 
     def unlock_chapter(self, number: int) -> BookPlan:
         self._require_book().unlock(number)
-        save_book_plan(self.book)
+        save_book_plan(self.book, self.book_plan_path)
         return self.book
 
     # -- chapter re-improvisation: candidates first, then adopt --------------
@@ -540,7 +549,8 @@ class Session:
             llm = self.provider
         return ChapterReimproviser(
             self.theme, self._char_list(), harmony=self.harmony,
-            story_state=self.story_state, motifs=self.motifs, llm=llm)
+            story_state=self.story_state, motifs=self.motifs, llm=llm,
+            relationships=self.relationships)
 
     def reimprovise_candidates(self, number: int, *, count: int = 2,
                                seed=None) -> List[ChapterCandidate]:
@@ -555,7 +565,7 @@ class Session:
         if chapter is None:
             raise ValueError(f"第 {candidate.number} 章不存在")
         ChapterReimproviser.apply(chapter, candidate.chapter)
-        save_book_plan(book)
+        save_book_plan(book, self.book_plan_path)
         return book, book.affected_downstream(candidate.number)
 
     def regenerate_chapters(self, numbers: List[int], *, seed=None) -> Tuple[BookPlan, List[int]]:
@@ -572,7 +582,7 @@ class Session:
             if candidates:
                 ChapterReimproviser.apply(book.chapter(n), candidates[0].chapter)
                 done.append(n)
-        save_book_plan(book)
+        save_book_plan(book, self.book_plan_path)
         return book, done
 
     def reimprovise_chapter(self, number: int, *, seed=None,
@@ -594,16 +604,16 @@ class Session:
 
     def lock_field(self, number: int, field_name: str) -> BookPlan:
         self._require_book().lock_field(number, field_name)
-        save_book_plan(self.book)
+        save_book_plan(self.book, self.book_plan_path)
         return self.book
 
     def unlock_field(self, number: int, field_name: str) -> BookPlan:
         self._require_book().unlock_field(number, field_name)
-        save_book_plan(self.book)
+        save_book_plan(self.book, self.book_plan_path)
         return self.book
 
     def export_outline(self, path=None) -> Path:
-        return export_book_outline(self._require_book(), path)
+        return export_book_outline(self._require_book(), path or self.outline_path)
 
     def _require_book(self) -> BookPlan:
         if self.book is None:
@@ -687,14 +697,15 @@ class Session:
     def vector_memory(self, *, rebuild: bool = False,
                       use_embedding: Optional[bool] = None) -> VectorStore:
         from store import VECTOR_STORE_PATH
+        path = self.vector_store_path or VECTOR_STORE_PATH
         if use_embedding is None:
             use_embedding = self.eval_mode in ("embedding", "hybrid")
         if not rebuild:
-            store = VectorStore.load(VECTOR_STORE_PATH, use_embedding=use_embedding)
+            store = VectorStore.load(path, use_embedding=use_embedding)
             if len(store):
                 return store
         store = VectorStore(use_embedding=use_embedding).rebuild_from_book(self._require_book())
-        store.save(VECTOR_STORE_PATH)
+        store.save(path)
         return store
 
     def vector_search(self, text: str, *, k: int = 3, rebuild: bool = False):
@@ -707,7 +718,8 @@ class Session:
     def write_report(self, outdir=None) -> Tuple[Path, Path]:
         book = self._require_book()
         deviation = analyze_book(book, self.theme, motifs=self.motifs, story_state=self.story_state)
-        return write_reports(book, self.theme, motifs=self.motifs, deviation=deviation, outdir=outdir)
+        return write_reports(book, self.theme, motifs=self.motifs, deviation=deviation,
+                             outdir=outdir or self.report_dir)
 
     # -- run records --------------------------------------------------------
     def _record_run(self, take: Take, evaluation: Evaluation, cue: Cue,

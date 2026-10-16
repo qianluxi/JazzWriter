@@ -54,11 +54,17 @@ def load_jazz(path: Optional[Path] = None) -> Dict[str, Any]:
 
 
 def load_characters(path: Optional[Path] = None) -> Dict[str, Character]:
+    """Load characters keyed by *stable id* (falls back to name).
+
+    Keying by name silently dropped characters that share a display name; keying
+    by ``effective_id`` keeps every character so relationship endpoints resolve
+    and duplicate-id checks can see them.
+    """
     data = _load_yaml(path or (DATA_DIR / "characters.yaml"))
     result: Dict[str, Character] = {}
     for item in data.get("characters", []):
         character = Character.from_dict(item)
-        result[character.name] = character
+        result[character.effective_id] = character
     return result
 
 

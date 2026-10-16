@@ -1,4 +1,4 @@
-# JazzWriter（小说爵士引擎）`v2.11`
+# JazzWriter（小说爵士引擎）`v2.12`
 
 > **长篇小说结构即兴引擎 / Human-AI Improvisational Writing System。**
 > 主要产物不是小说正文，而是**故事方案、全书梗概、分卷结构、逐章摘要卡片，以及人物与关系网络**。
@@ -75,7 +75,7 @@ python main.py outline --lock 3
 python main.py outline --lock-field 3 conflict
 python main.py outline --reimprovise 5                 # 生成候选（不覆盖）
 python main.py outline --reimprovise 5 --adopt 1 --regen all   # 采纳并重生成后续
-python main.py outline --export            # → output/book_outline.md
+python main.py outline --export            # → <数据目录>/book_outline.md
 
 # 5) 编辑章节卡片（简表字段 / 完整 JSON）
 python main.py outline --edit 3 --file card.txt
@@ -209,9 +209,10 @@ python main.py book --from-plan --pov 林 --no-save
 ## 记忆 · 偏离检测 · 可视化
 
 - **轻量语义记忆**（`engine/memory.py`）：近重复检测、主题漂移、人物弧缺失、意象未使用、结构卡片提前揭露。（相似度为"报警"，不作评分。）
-- **向量记忆**（`engine/vector_store.py`）：**可持久化**的语义向量库——有嵌入模型时用 embedding，否则回退 CJK 词向量，存到 `output/vector_store.json`；`Session.vector_memory()/vector_search()`，CLI `memory`。
-- **故事板导出**（`engine/report.py`）：`output/story_report.md` 与**可交互** `output/story_report.html`（按视角筛选、关键词搜索、点击章节查看卡片）；含动机演变时间线、人物弧线图、线索伏笔面板。
+- **向量记忆**（`engine/vector_store.py`）：**可持久化**的语义向量库——有嵌入模型时用 embedding，否则回退 CJK 词向量，存到**数据目录**（如 `data/vector_store.json`）；`Session.vector_memory()/vector_search()`，CLI `memory`。
+- **故事板导出**（`engine/report.py`）：`story_report.md` 与**可交互** `story_report.html`（按视角筛选、关键词搜索、点击章节查看卡片）；含动机演变时间线、人物弧线图、线索伏笔面板。
 - **运行记录**：每次 `play` 写 `output/runs/<run_id>.json`（cue/prompt/评价/建议）；`history` 做趋势统计；`--show-prompt` 打印的就是实际调用的同一份 prompt。
+- **项目隔离**：`BookPlan / 结构导出 / 向量库 / 故事板` 都保存在**当前数据目录**下，`--data <dir>` 切换项目时互不干扰。
 
 ---
 
@@ -257,7 +258,8 @@ python main.py play "..." --provider opencode
 - `data/motifs.yaml` — 意象定义（运行时意义演变写入 `motif_state.yaml`）
 - `data/story_state.yaml` — 故事圣经（事实 / 认知 / 线索 / 近期事件）
 
-`python main.py init --force` 重新写入示例乐谱。`--data <dir>` 可切换到独立项目乐谱（如同时维护多部小说）。
+`python main.py init --force` 重新写入示例乐谱。`--data <dir>` 可切换到独立项目乐谱（如同时维护多部小说）——
+**全书规划、结构导出、向量库与故事板都保存在该目录下**，切换项目互不干扰。
 
 ---
 
@@ -276,8 +278,8 @@ feedback/       theme_check / character_check / novelty_check / conductor
 jam_session/    director / soloist / observer / editor / orchestrator
 llm/            base / mock / openai_provider / opencode_provider
 session.py  store.py  cli.py  gui.py  main.py
-tests/          回归测试（91 项）
-projects/       独立小说的乐谱与稿子（示例见 projects/border2020/）
+tests/          回归测试（99 项）
+projects/       独立小说的乐谱与稿子（示例见 projects/border2020/；产出随各项目目录保存）
 ```
 
 ---
@@ -296,7 +298,7 @@ projects/       独立小说的乐谱与稿子（示例见 projects/border2020/�
 ## 测试
 
 ```powershell
-python -m unittest discover -s tests     # 91 项：确定性 / 记录 / 连续性 / 约束注入 / 结构校验 / 人物关系 / 反馈边界 / 向量记忆 / Jam
+python -m unittest discover -s tests     # 99 项：确定性 / 记录 / 连续性 / 约束注入 / 结构校验 / 人物关系 / 反馈边界 / 向量记忆 / Jam / 项目隔离
 ```
 
 ---
@@ -305,6 +307,7 @@ python -m unittest discover -s tests     # 91 项：确定性 / 记录 / 连续�
 
 | 版本 | 内容 |
 | --- | --- |
+| **v2.12** | 修复：多项目产出隔离（规划/向量/故事板随数据目录）· 同名人物不再被覆盖（按 id 存储）· 重新即兴同步刷新人物决策/认知/关系 · 离线路径执行世界规则与故事状态 · 知识来源具体化并校验"只给章号" |
 | **v2.11** | 向量记忆（持久化/embedding 可选）· 交互式故事板 · Jam 多轮辩论 · 模型生成场景骨架 |
 | v2.10 | 创意五维对照 · 融合对照 · 章节级人物上下文 · 结构化编辑控件 · 关系演变维度 |
 | v2.9 | 人物认知连续性（来源必填/不来自未来/秘密提示）· 注入链路测试 |

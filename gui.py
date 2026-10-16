@@ -319,7 +319,7 @@ class App:
         except Exception as exc:  # noqa: BLE001
             messagebox.showerror("加载失败", f"无法加载设定:\n{exc}")
             return
-        names = list(self.session.characters.keys())
+        names = [c.name for c in self.session.characters.values()]
         self.pov_combo.configure(values=names)
         if names and self.pov_var.get() not in names:
             self.pov_var.set(names[0])
@@ -1028,7 +1028,7 @@ class App:
             return "(未加载)"
         lines = []
         for row in s.character_usage():
-            c = s.characters[row["name"]]
+            c = s.resolve_character(row["id"])
             lines.append(f"[{row['tier']}] {row['name']} ({row['id']})　POV={'✓' if row['pov'] else '—'}")
             for label, value in (("欲望", c.desire), ("恐惧", c.fear), ("当前目标", c.current_goal)):
                 if value:

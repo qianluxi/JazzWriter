@@ -13,12 +13,18 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 from core.book_plan import BookPlan
-from core.chapter_plan import FIELD_NAMES, ChapterPlan
+from core.chapter_plan import (FIELD_NAMES, ChapterPlan, CharacterDecision,
+                               KnowledgeChange, RelationshipChange)
 from core.character import Character
 from core.harmony import Harmony
+from core.relationship import RelationshipMap
 from core.story_state import StoryState
 from core.theme import Theme
+from engine.outline_expander import REL_CHANGE_FUNCS
 from engine.planning_llm import generate_json
+
+STRUCT_FIELDS = ["pov_character_id", "characters_involved", "character_decisions",
+                 "knowledge_changes", "relationship_changes"]
 
 OPERATOR_VARIANTS: List[tuple] = [
     ("information_displacement", "改变信息揭示顺序：先给现象，把原因后置。"),
@@ -49,13 +55,48 @@ class ChapterReimproviser:
     def __init__(self, theme: Theme, characters: List[Character], *,
                  harmony: Optional[Harmony] = None,
                  story_state: Optional[StoryState] = None,
-                 motifs=None, llm=None) -> None:
+                 motifs=None, llm=None, relationships=None) -> None:
         self.theme = theme
         self.characters = {c.name: c for c in characters}
+        self.characters_by_id = {c.effective_id: c for c in characters}
         self.harmony = harmony
         self.story_state = story_state
         self.motifs = motifs
         self.llm = llm
+        self.relationships = relationships or RelationshipMap()
+
+    def _pov_char(self, base: ChapterPlan):
+        return (self.characters_by_id.get(base.pov_character_id)
+                or self.characters.get(base.pov))
+
+    def _refresh_metadata(self, ch: ChapterPlan, base: ChapterPlan) -> None:
+        """Rebuild structured character metadata so it matches the new content
+        (a re-improvised chapter must not keep the old decisions/knowledge)."""
+        pov = self._pov_char(base)
+        pov_id = base.pov_character_id or (pov.effective_id if pov else base.pov)
+        ch.pov_character_id = pov_id
+        if not ch.characters_involved:
+            ch.characters_involved = list(base.characters_involved) or [pov_id]
+        ch.character_decisions = [CharacterDecision(
+            character_id=pov_id, decision=ch.key_action or ch.summary,
+            motivation=(pov.current_goal or pov.desire or "") if pov else "")]
+        ch.knowledge_changes = ([KnowledgeChange(
+            character_id=pov_id, change=ch.info_change,
+            source=f"第 {ch.number} 章 · {(ch.key_action or ch.summary)[:16]}")]
+            if ch.info_change else [])
+        ch.relationship_changes = self._recompute_relationship(ch, base)
+
+    def _recompute_relationship(self, ch: ChapterPlan, base: ChapterPlan):
+        if base.function not in REL_CHANGE_FUNCS or not self.relationships.relationships:
+            return []
+        inv = set(ch.characters_involved)
+        for r in self.relationships.relationships:
+            if r.source_id in inv and r.target_id in inv:
+                return [RelationshipChange(
+                    pair=[r.source_id, r.target_id],
+                    change=r.possible_transition or "关系发生变化",
+                    cause=r.pressure_point or "")]
+        return []
 
     def propose(self, book: BookPlan, number: int, *, count: int = 2,
                 seed=None, operators: Optional[List[str]] = None) -> List[ChapterCandidate]:
@@ -99,8 +140,9 @@ class ChapterReimproviser:
             ch.conflict = base.conflict
         ch.summary = f"{pov}（{key}）：{ch.key_action or base.summary}"
         ch.notes = ((base.notes + " ") if base.notes else "") + OFFLINE_NOTE
+        self._refresh_metadata(ch, base)
 
-        changed = [f for f in FIELD_NAMES if getattr(ch, f) != getattr(base, f)]
+        changed = [f for f in FIELD_NAMES + STRUCT_FIELDS if getattr(ch, f) != getattr(base, f)]
         return ChapterCandidate(number=base.number,
                                 label=f"候选[{key}]：{_VARIANT_DESC.get(key, key)}",
                                 chapter=ch, changed_fields=changed,
@@ -150,7 +192,8 @@ class ChapterReimproviser:
             cdict["status"] = "candidate"
             cdict["source"] = "llm"
             ch = ChapterPlan.from_dict({**base.to_dict(), **cdict})
-            changed = [f for f in FIELD_NAMES if getattr(ch, f) != getattr(base, f)]
+            self._refresh_metadata(ch, base)
+            changed = [f for f in FIELD_NAMES + STRUCT_FIELDS if getattr(ch, f) != getattr(base, f)]
             out.append(ChapterCandidate(number=base.number,
                                         label=str(item.get("label", "LLM 候选")),
                                         chapter=ch, changed_fields=changed, source="llm"))
@@ -162,7 +205,7 @@ class ChapterReimproviser:
         """Copy a candidate's fields onto the live chapter, preserving locks."""
         locked = {f: getattr(chapter, f) for f in chapter.locked_fields}
         locked_fields = list(chapter.locked_fields)
-        for f in FIELD_NAMES:
+        for f in FIELD_NAMES + STRUCT_FIELDS:
             setattr(chapter, f, getattr(candidate_chapter, f))
         chapter.status = "accepted"
         chapter.source = candidate_chapter.source or "edited"

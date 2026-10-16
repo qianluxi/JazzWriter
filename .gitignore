@@ -17,3 +17,12 @@ data/jazz_state.yaml
 data/motif_state.yaml
 .pytest_cache/
 ~$*
+# project-scoped runtime outputs (any data dir / project)
+book_plan.json
+book_outline.md
+vector_store.json
+story_report.md
+story_report.html
+motif_state.yaml
+jazz_state.yaml
+advice_history.jsonl

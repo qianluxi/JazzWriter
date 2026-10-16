@@ -33,8 +33,12 @@ class JamSession:
         self.llm = llm
 
     def _character(self, pov: Optional[str]) -> Character:
-        if pov and pov in self.characters:
-            return self.characters[pov]
+        if pov:
+            if pov in self.characters:
+                return self.characters[pov]
+            for c in self.characters.values():
+                if c.name == pov or c.effective_id == pov:
+                    return c
         if self.characters:
             return next(iter(self.characters.values()))
         return Character(name=pov or "主角")

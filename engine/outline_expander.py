@@ -52,7 +52,8 @@ def _sequence(template: str, n: int) -> List[str]:
 
 
 class OutlineExpander:
-    def __init__(self, theme: Theme, cast, *, relationships: Optional[RelationshipMap] = None) -> None:
+    def __init__(self, theme: Theme, cast, *, relationships: Optional[RelationshipMap] = None,
+                 harmony=None, story_state=None) -> None:
         self.theme = theme
         self.characters: List[Character] = [
             c if isinstance(c, Character) else Character(name=str(c)) for c in (cast or [])
@@ -61,6 +62,22 @@ class OutlineExpander:
         self.relationships = relationships or RelationshipMap()
         self._pov_characters = [c for c in self.characters if getattr(c, "pov", True)] or self.characters
         self._by_id = {c.effective_id: c for c in self.characters}
+        # offline path also respects world rules and the story state
+        self.harmony = harmony
+        self.story_state = story_state
+        self._forbidden = [b for b in (harmony.forbidden if harmony else []) if b]
+        self._secret_reveals = story_state.forbidden_reveals() if story_state else []
+        self._curve = list(harmony.emotion_curve) if harmony else []
+
+    def _sanitize(self, text: str) -> str:
+        out = text or ""
+        for bad in self._forbidden:
+            if bad in out:
+                out = out.replace(bad, "（略）")
+        for secret in self._secret_reveals:
+            if secret and secret in out:
+                out = "（按设定，此处不揭露）"
+        return out
 
     def expand(
         self,
@@ -114,15 +131,18 @@ class OutlineExpander:
             ch_motifs = [motifs[i % len(motifs)], motifs[(i + 1) % len(motifs)]]
             ch_motifs = list(dict.fromkeys(ch_motifs))  # dedupe, keep order
 
-            conflict = self._conflict(fn, turn, pov, book)
-            outcome = self._outcome(fn, turn)
+            curve = (self._curve[int(round((i / max(1, chapter_count - 1)) * (len(self._curve) - 1)))]
+                     if self._curve else "")
+            action = self._sanitize(self._action(fn, pov, turn))
+            conflict = self._sanitize(self._conflict(fn, turn, pov, book))
+            outcome = self._sanitize(self._outcome(fn, turn))
             hook_to = self._hook(fn, turn, i, chapter_count)
-            info_line = self._info(fn, reveal_threads)
-            decisions = [CharacterDecision(character_id=pov_id,
-                                           decision=self._action(fn, pov, turn),
+            info_line = self._sanitize(self._info(fn, reveal_threads))
+            char_change = self._sanitize(self._char_change(fn, pov)) + (f"（情绪坐标：{curve}）" if curve else "")
+            decisions = [CharacterDecision(character_id=pov_id, decision=action,
                                            motivation=pov_char.current_goal or pov_char.desire or "")]
             knowledge = ([KnowledgeChange(character_id=pov_id, change=info_line,
-                                          source=f"第 {i + 1} 章")]
+                                          source=f"第 {i + 1} 章 · {action[:20]}")]
                          if info_line else [])
             rel_changes = self._relationship_changes(fn, involved)
 
@@ -137,12 +157,12 @@ class OutlineExpander:
                 knowledge_changes=knowledge,
                 relationship_changes=rel_changes,
                 premise=prev_hook,
-                key_action=self._action(fn, pov, turn),
+                key_action=action,
                 conflict=conflict,
                 outcome=outcome,
-                stakes=self._stakes(book),
+                stakes=self._sanitize(self._stakes(book)),
                 info_change=info_line,
-                character_change=self._char_change(fn, pov),
+                character_change=char_change,
                 threads=active_threads + reveal_threads,
                 motifs=ch_motifs,
                 hook_from=prev_hook,

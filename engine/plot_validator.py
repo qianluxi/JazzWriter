@@ -192,6 +192,11 @@ class PlotValidator:
                         issues.append(Issue("medium", "knowledge",
                                             f"第 {c.number} 章 {who} 的信息来源指向未来章节（{kc.source}）",
                                             c.number))
+                    residual = re.sub(r"第\s*\d+\s*章", "", kc.source).strip(" ·，,;；:-—")
+                    if len(residual) < 2:
+                        issues.append(Issue("low", "knowledge",
+                                            f"第 {c.number} 章 {who} 的知识来源过于宽泛（只给了章号，未说明通过什么得知）",
+                                            c.number))
                 if kc.fact_id and kc.fact_id in secret_ids:
                     issues.append(Issue("low", "knowledge",
                                         f"第 {c.number} 章通过认知变化涉及秘密 {kc.fact_id}，请确认揭露时机",

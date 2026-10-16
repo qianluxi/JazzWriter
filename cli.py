@@ -856,7 +856,7 @@ def cmd_chars(args) -> int:
     for col in ("ID", "名字", "层级", "POV", "参与章", "欲望"):
         table.add_column(col)
     for row in usage:
-        c = session.characters[row["name"]]
+        c = session.resolve_character(row["id"])
         table.add_row(row["id"], row["name"], row["tier"], "✓" if row["pov"] else "—",
                       "、".join(str(n) for n in row["chapters"]) or "—", c.desire)
     console.print(table)
