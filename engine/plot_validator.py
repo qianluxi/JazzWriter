@@ -33,6 +33,21 @@ class PlotValidator:
         if not chapters:
             return [Issue("high", "empty", "尚未生成任何章节结构。")]
 
+        # numbering: unique, consecutive, starting at 1
+        nums = [c.number for c in chapters]
+        if len(set(nums)) != len(nums):
+            issues.append(Issue("high", "numbering", f"章节编号重复：{sorted(nums)}"))
+        expected = list(range(1, len(chapters) + 1))
+        if sorted(nums) != expected:
+            missing = sorted(set(expected) - set(nums))
+            if missing:
+                issues.append(Issue("high", "numbering", f"缺少章节：{missing}（编号不连续）"))
+        # per-volume order
+        for vol in book.volumes:
+            vnums = [c.number for c in vol.chapters]
+            if vnums != sorted(vnums):
+                issues.append(Issue("low", "order", f"第 {vol.number} 卷章节顺序不正确：{vnums}"))
+
         for ch in chapters:
             missing = [f for f, v in (("起因", ch.premise), ("冲突", ch.conflict),
                                       ("结果", ch.outcome)) if not v]

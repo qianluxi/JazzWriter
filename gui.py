@@ -47,6 +47,30 @@ STRUCTURE_PARAMS = [
 DEFAULT_STYLES = ["冷静观察", "象征增强", "心理深入"]
 
 
+class SingleFlight:
+    """Pure single-task guard: only one background task at a time.
+
+    Extracted from the GUI so it is testable without a display. The App uses it
+    to reject overlapping tasks and to re-enable buttons on completion/failure.
+    """
+
+    def __init__(self) -> None:
+        self._busy = False
+
+    @property
+    def busy(self) -> bool:
+        return self._busy
+
+    def begin(self) -> bool:
+        if self._busy:
+            return False
+        self._busy = True
+        return True
+
+    def end(self) -> None:
+        self._busy = False
+
+
 def _setup_fonts(root: tk.Tk) -> None:
     for name in ("TkDefaultFont", "TkTextFont", "TkMenuFont", "TkHeadingFont"):
         try:
@@ -65,7 +89,7 @@ class App:
         self.root = root
         self.session: Session | None = None
         self.ideas = []
-        self._busy = False
+        self._flight = SingleFlight()
         self._buttons: list[ttk.Button] = []
         root.title("JazzWriter · 小说结构即兴引擎")
         root.geometry("1280x820")
@@ -299,11 +323,10 @@ class App:
         self._populate_tree()
 
     # -- async runner (snapshot-first, single-flight, disable buttons) ------
-    def _async(self, work, done, *, label="处理中…") -> None:
-        if self._busy:
-            messagebox.showinfo("请稍候", "已有任务在执行，请等待完成。")
-            return
-        self._busy = True
+    def _async(self, work, done, *, label="处理中…") -> bool:
+        if not self._flight.begin():
+            self.status_var.set("已有任务在执行，请等待完成…")
+            return False
         self._set_buttons(False)
         self.status_var.set(label)
 
@@ -315,9 +338,10 @@ class App:
             self.root.after(0, lambda: self._finish(result, done))
 
         threading.Thread(target=runner, daemon=True).start()
+        return True
 
     def _finish(self, result, done) -> None:
-        self._busy = False
+        self._flight.end()
         self._set_buttons(True)
         if isinstance(result, Exception):
             self.status_var.set("出错")
