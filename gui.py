@@ -912,8 +912,9 @@ class App:
             lines.append("【叙事审阅（含依据）】")
             for f in review:
                 ch = f"第{f['chapter']}章 " if f.get("chapter") else ""
+                tag = "⚠ 事实冲突 " if f.get("kind") == "fact_conflict" else ""
                 ev = f"　依据：{f['evidence']}" if f.get("evidence") else ""
-                lines.append(f"  · {ch}{f['issue']}{ev}")
+                lines.append(f"  · {tag}{ch}{f['issue']}{ev}")
         lines.append("")
         lines.append(f"【参考分数（分数仅供参考）】综合 {report.overall:.0%}")
         for k, v in report.dimensions.items():

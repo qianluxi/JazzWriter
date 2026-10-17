@@ -1,4 +1,4 @@
-# JazzWriter（小说爵士引擎）`v2.13`
+# JazzWriter（小说爵士引擎）`v2.14`
 
 > **长篇小说结构即兴引擎 / Human-AI Improvisational Writing System。**
 > 主要产物不是小说正文，而是**故事方案、全书梗概、分卷结构、逐章摘要卡片，以及人物与关系网络**。
@@ -201,6 +201,7 @@ python main.py book --from-plan --pov 林 --no-save
 - **锁定**：整章锁定 + 字段级锁定；`expand_book` 拒绝在已有详细卡片时静默重写（需 `force`）。
 - **重新即兴 = 候选 → 采纳**：先给候选（含改动字段），采纳后才写回；锁定内容不被覆盖。
 - **两层校验**：结构硬校验（缺章/编号/断链/未回收线索/闲置人物/未知人物 id/关系连续性/认知连续性）+ 可选**叙事审阅**（事件合理性/人物选择/冲突升级/结局回应，给出依据与章号）。
+- **事实冲突（语义）显式审阅**：把各章与 `story_state` 的**已确定事实**对照，判断是否存在语义矛盾（如"设备从未修复" vs "已修复成功"），结论带章号与引用的事实。**需要模型**；离线时明确标注"需接入模型、不判定"，绝不静默通过。
 - **结构评价七维**：创意独特性 / 故事完整性 / 因果连续性 / 人物变化 / 章节贡献 / 伏笔与回收 / **关系演变**。
 - **创意过期保护**：方案记录前提指纹，前提改动后 `ideas_stale` 会提示过期。
 
@@ -278,7 +279,7 @@ feedback/       theme_check / character_check / novelty_check / conductor
 jam_session/    director / soloist / observer / editor / orchestrator
 llm/            base / mock / openai_provider / opencode_provider
 session.py  store.py  cli.py  gui.py  main.py
-tests/          回归测试（106 项）
+tests/          回归测试（111 项）
 projects/       独立小说的乐谱与稿子（示例见 projects/border2020/；产出随各项目目录保存）
 ```
 
@@ -298,7 +299,7 @@ projects/       独立小说的乐谱与稿子（示例见 projects/border2020/�
 ## 测试
 
 ```powershell
-python -m unittest discover -s tests     # 106 项：确定性 / 记录 / 连续性 / 约束注入 / 结构校验 / 人物关系 / 反馈边界 / 向量记忆 / Jam / 项目隔离
+python -m unittest discover -s tests     # 111 项：确定性 / 记录 / 连续性 / 约束注入 / 结构校验 / 人物关系 / 反馈边界 / 向量记忆 / Jam / 项目隔离 / 事实冲突审阅
 ```
 
 ---
@@ -307,6 +308,7 @@ python -m unittest discover -s tests     # 106 项：确定性 / 记录 / 连续
 
 | 版本 | 内容 |
 | --- | --- |
+| **v2.14** | 新增「与已确定事实的语义冲突」显式 LLM 审阅项（带章号与引用事实；离线明确标注"需模型、不判定"） |
 | **v2.13** | 修复：运行记录/正文/参数/状态也随数据目录隔离 · 重复人物 id 不再丢人且可被检查 · 重即兴同步刷新参与人物与 POV id、来源锚定到线索 · 离线清洗覆盖全部字段（含标题/钩子/线索，逐 POV 秘密）· 无可作视角人物时报错 · 取消 compose_book 场景循环复用 |
 | **v2.12** | 修复：多项目产出隔离（规划/向量/故事板随数据目录）· 同名人物不再被覆盖（按 id 存储）· 重新即兴同步刷新人物决策/认知/关系 · 离线路径执行世界规则与故事状态 · 知识来源具体化并校验"只给章号" |
 | **v2.11** | 向量记忆（持久化/embedding 可选）· 交互式故事板 · Jam 多轮辩论 · 模型生成场景骨架 |

@@ -519,7 +519,7 @@ class Session:
         if target is None:
             raise ValueError("尚无 BookPlan")
         llm = self.provider if getattr(self.provider, "name", "mock") not in ("mock", "") else None
-        return StructureEvaluator(reviewer=NarrativeReviewer(llm),
+        return StructureEvaluator(reviewer=NarrativeReviewer(llm, story_state=self.story_state),
                                   relationships=self.relationships,
                                   story_state=self.story_state).evaluate(target)
 

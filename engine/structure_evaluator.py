@@ -145,7 +145,7 @@ class StructureEvaluator:
         validation = [i.message for i in
                       PlotValidator().validate(book, relationships=self.relationships,
                                                story_state=self.story_state)]
-        reviewer = self.reviewer or NarrativeReviewer()
+        reviewer = self.reviewer or NarrativeReviewer(story_state=self.story_state)
         review = [f.to_dict() for f in reviewer.review(book)]
         if book.structure_template in OPEN_TEMPLATES:
             notes.append("该结构模板允许开放结局；未回收的线索不一定算缺陷。")

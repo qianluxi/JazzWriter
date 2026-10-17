@@ -546,10 +546,11 @@ def _print_structure(report) -> None:
     review = getattr(report, "review", []) or []
     if review:
         console.print("[cyan]叙事审阅（含依据）：[/cyan]")
-        for f in review[:8]:
+        for f in review[:10]:
             ch = f"第{f['chapter']}章 " if f.get("chapter") else ""
+            tag = "[red]⚠ 事实冲突 [/red]" if f.get("kind") == "fact_conflict" else ""
             ev = f"　依据：{f['evidence']}" if f.get("evidence") else ""
-            console.print(f"  · {ch}{f['issue']}{ev}")
+            console.print(f"  · {tag}{ch}{f['issue']}{ev}")
     table = Table(title="结构评价 · Structure（分数仅供参考）", header_style="bold")
     table.add_column("维度")
     table.add_column("分数", justify="right")

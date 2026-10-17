@@ -106,7 +106,7 @@ def build() -> Document:
     _cjk(srun.font)
     ver = doc.add_paragraph()
     ver.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    vrun = ver.add_run("适用版本 v2.13　·　Novel Jazz Engine")
+    vrun = ver.add_run("适用版本 v2.14　·　Novel Jazz Engine")
     vrun.font.size = Pt(11)
     vrun.font.color.rgb = RGBColor.from_string("999999")
     _cjk(vrun.font)
@@ -173,6 +173,8 @@ def build() -> Document:
            "点「校验结构」查看问题清单——**先列问题，再列参考分数**。")
     p(doc, "校验分两层：结构硬校验（缺章/编号/断链/未回收线索/闲置人物）+ 叙事审阅"
            "（事件是否合理、人物选择是否成立、结局是否回应开篇，给出依据与章号）。")
+    p(doc, "另有一项显式检查：与“已确定事实”的语义冲突（如事实称设备从未修复，章节却写已修复）。"
+           "该项需要模型判断；离线运行时系统会明确标注“需接入模型、不判定”，不会静默通过。")
 
     h2(doc, "第 5 步：编辑、锁定与局部重新即兴")
     p(doc, "在「结构树」选中一章 →「章节卡片」可直接编辑 →点「保存章节卡片编辑」。"
