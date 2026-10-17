@@ -106,7 +106,7 @@ def build() -> Document:
     _cjk(srun.font)
     ver = doc.add_paragraph()
     ver.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    vrun = ver.add_run("适用版本 v2.17　·　Novel Jazz Engine")
+    vrun = ver.add_run("适用版本 v2.18　·　Novel Jazz Engine")
     vrun.font.size = Pt(11)
     vrun.font.color.rgb = RGBColor.from_string("999999")
     _cjk(vrun.font)
@@ -293,6 +293,10 @@ def build() -> Document:
     h1(doc, "七、局部演练：正文 / 多版本 / Jam")
     h2(doc, "按结构渲染正文")
     p(doc, "用已生成的章节摘要作为场景，顺序写成正文（可选）。按钮：「按结构渲染正文」。")
+    p(doc, "在线正文预览：每次渲染都会生成一个自包含阅读页，并默认同步到远端——"
+           "docs/preview/<项目>.html 与索引 index.html。启用 GitHub Pages（仓库 Settings → Pages → "
+           "Source 选 main 分支 /docs）后，即可在 https://<用户名>.github.io/<仓库>/preview/ 阅读。"
+           "不想自动推送可设环境变量 NJE_PREVIEW_AUTOPUSH=0，或命令加 --no-publish。")
     h2(doc, "试写与多版本")
     bullets(doc, [
         "「演奏一章（试写）」：局部即兴一段正文，含“即兴决策 Cue”“评价”。",

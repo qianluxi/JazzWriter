@@ -5,6 +5,8 @@ from __future__ import annotations
 import dataclasses
 import datetime as _dt
 import hashlib
+import os
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -23,6 +25,8 @@ from engine.composer import Composer, Take
 from engine.evaluator import Evaluation, Evaluator
 from engine.memory import DeviationReport, MemoryIndex, analyze_book
 from engine.narrative_reviewer import NarrativeReviewer
+from engine.preview import (build_manuscript_html, rebuild_index, slugify,
+                            write_preview)
 from engine.outline_expander import OutlineExpander, TEMPLATE_LABELS
 from engine.reimproviser import ChapterCandidate, ChapterReimproviser
 from engine.plot_validator import PlotValidator
@@ -38,6 +42,8 @@ from llm import get_provider
 from llm.base import LLMProvider
 from store import (
     DATA_DIR,
+    PREVIEW_DIR,
+    ROOT,
     load_characters,
     load_jazz,
     load_jazz_state,
@@ -74,6 +80,7 @@ class Session:
         book: Optional[BookPlan] = None,
         relationships: Optional[RelationshipMap] = None,
         data_dir: Optional[Path] = None,
+        preview_dir: Optional[Path] = None,
     ) -> None:
         self.theme = theme
         self.harmony = harmony
@@ -99,6 +106,8 @@ class Session:
         self.advice_path: Optional[Path] = (base / "advice_history.jsonl") if base else None
         self.story_state_path: Optional[Path] = (base / "story_state.yaml") if base else None
         self.jazz_state_path: Optional[Path] = (base / "jazz_state.yaml") if base else None
+        self.preview_dir: Path = Path(preview_dir) if preview_dir else PREVIEW_DIR
+        self.last_publish: Optional[Dict[str, Any]] = None
 
     # -- construction -------------------------------------------------------
     @classmethod
@@ -629,7 +638,8 @@ class Session:
 
     def render_book_from_plan(self, *, pov=None, style: str = "现实主义",
                               jazz_mode=None, seed=None, overrides=None,
-                              save: bool = True) -> List[Tuple[int, Take, Evaluation]]:
+                              save: bool = True, publish: bool = True,
+                              ) -> List[Tuple[int, Take, Evaluation]]:
         """Generate prose from a saved structure (uses each chapter's summary as
         the scene). Never cycles a single scene across chapters."""
         book = self._require_book()
@@ -653,6 +663,8 @@ class Session:
             results.append((ch.number, take, eva))
         if save:
             self.persist_motifs()
+        if publish:
+            self.publish_preview(results)
         return results
 
     @staticmethod
@@ -693,6 +705,78 @@ class Session:
             self.record_motifs(take)
             self.persist_motifs()
         return take, eva
+
+    # -- online manuscript preview (GitHub Pages) --------------------------
+    def _pages_base(self) -> str:
+        import subprocess
+        try:
+            out = subprocess.run(["git", "-C", str(ROOT), "remote", "get-url", "origin"],
+                                 capture_output=True, text=True, timeout=8)
+            m = re.search(r"github\.com[:/]([^/]+)/([^/.]+)", (out.stdout or "").strip())
+            if m:
+                return f"https://{m.group(1)}.github.io/{m.group(2)}/preview/"
+        except Exception:  # noqa: BLE001
+            pass
+        return os.getenv("NJE_PAGES_BASE", "")
+
+    def preview_url(self, filename: str) -> str:
+        base = self._pages_base()
+        return (base if base.endswith("/") else base + "/") + filename if base else ""
+
+    def publish_preview(self, takes, *, title=None, subtitle="", push=None) -> Dict[str, Any]:
+        import os
+        chapters: List[Dict[str, Any]] = []
+        for item in takes:
+            if isinstance(item, (tuple, list)):
+                number, take = item[0], item[1]
+            else:
+                number, take = getattr(item, "chapter", 0), item
+            ch = self.book.chapter(number) if self.book else None
+            chapters.append({"number": number,
+                             "title": (ch.title if ch else ""),
+                             "pov": getattr(take, "pov", ""),
+                             "text": getattr(take, "text", "")})
+        name = title or (self.book.title if self.book else self.theme.title)
+        filename = f"{slugify(self.data_dir.name if self.data_dir else 'default')}.html"
+        html_text = build_manuscript_html(
+            name, chapters, subtitle=subtitle, question=self.theme.question,
+            updated=_dt.datetime.now().isoformat(timespec="seconds"))
+        path = write_preview(self.preview_dir, filename, html_text)
+        rebuild_index(self.preview_dir)
+
+        if push is None:
+            default_dir = Path(PREVIEW_DIR).resolve()
+            push = (os.getenv("NJE_PREVIEW_AUTOPUSH", "1") != "0"
+                    and Path(self.preview_dir).resolve() == default_dir)
+        info: Dict[str, Any] = {"path": str(path), "url": self.preview_url(filename),
+                                "pushed": False, "message": ""}
+        if push:
+            info.update(self._git_publish(filename))
+        self.last_publish = info
+        return info
+
+    @staticmethod
+    def _git_publish(filename: str) -> Dict[str, Any]:
+        import subprocess
+
+        def run(args):
+            return subprocess.run(["git", "-C", str(ROOT)] + args,
+                                  capture_output=True, text=True, timeout=60)
+
+        try:
+            if run(["rev-parse", "--is-inside-work-tree"]).returncode != 0:
+                return {"pushed": False, "message": "not a git repo"}
+            run(["add", "docs/preview"])
+            commit = run(["commit", "-m", f"preview: update manuscript ({filename})"])
+            combined = (commit.stdout or "") + (commit.stderr or "")
+            if commit.returncode != 0 and "nothing to commit" not in combined:
+                return {"pushed": False, "message": combined.strip()[:200]}
+            push = run(["push", "origin", "HEAD"])
+            if push.returncode != 0:
+                return {"pushed": False, "message": ((push.stderr or push.stdout) or "").strip()[:200]}
+            return {"pushed": True, "message": "pushed"}
+        except Exception as exc:  # noqa: BLE001
+            return {"pushed": False, "message": str(exc)}
 
     # -- memory & deviation (V1.0) -----------------------------------------
     def memory_index(self) -> MemoryIndex:

@@ -20,6 +20,7 @@ from engine.evaluator import Evaluation
 
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
+PREVIEW_DIR = ROOT / "docs" / "preview"
 OUTPUT_DIR = ROOT / "output"
 CHAPTERS_DIR = OUTPUT_DIR / "chapters"
 RUNS_DIR = OUTPUT_DIR / "runs"

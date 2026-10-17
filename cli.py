@@ -461,11 +461,17 @@ def cmd_book(args) -> int:
         try:
             results = session.render_book_from_plan(
                 pov=args.pov, style=args.style, jazz_mode=args.mode,
-                seed=args.seed, overrides=_jazz_overrides(args), save=not args.no_save)
+                seed=args.seed, overrides=_jazz_overrides(args), save=not args.no_save,
+                publish=not getattr(args, "no_publish", False))
         except ValueError as exc:
             console.print(f"[red]{exc}[/red]")
             return 2
-        console.print("[dim]由 output/book_plan.json 的结构渲染正文 …[/dim]")
+        console.print("[dim]由 book_plan.json 的结构渲染正文 …[/dim]")
+        info = session.last_publish
+        if info:
+            console.print(f"[green]在线预览[/green] → {info['path']}"
+                          + (f"　{info['url']}" if info.get("url") else "")
+                          + (f"（{info['message']}）" if info.get("message") else ""))
     else:
         scenes = _read_scenes(args)
         if not scenes:
@@ -792,6 +798,29 @@ def cmd_jam(args) -> int:
             seed=args.seed, overrides=_jazz_overrides(args), chapter=args.chapter or 1,
             total_chapters=args.total, save=not args.no_save)
         _show_take(take, evaluation)
+    return 0
+
+
+def cmd_preview(args) -> int:
+    from types import SimpleNamespace
+
+    session = _build_session(args)
+    base = Path(session.chapters_dir) if session.chapters_dir else (Path("output") / "chapters")
+    files = sorted(base.glob("*.md"))
+    if not files:
+        console.print(f"[red]尚无章节正文于 {base}。先运行 `book --from-plan`。[/red]")
+        return 2
+    takes = []
+    for i, f in enumerate(files, 1):
+        text = f.read_text(encoding="utf-8")
+        parts = text.split("---")
+        if len(parts) >= 3:
+            text = "---".join(parts[2:]).strip()
+        takes.append((i, SimpleNamespace(text=text, pov="", chapter=i, style=f.stem)))
+    info = session.publish_preview(takes, push=not getattr(args, "no_publish", False))
+    console.print(f"[green]在线预览[/green] → {info['path']}"
+                  + (f"　{info['url']}" if info.get("url") else "")
+                  + (f"（{info['message']}）" if info.get("message") else ""))
     return 0
 
 
@@ -1210,6 +1239,8 @@ def build_parser() -> argparse.ArgumentParser:
                     help="用 output/book_plan.json 的章节结构渲染正文")
     bk.add_argument("--update-state", dest="update_state", action="store_true",
                     help="把本次进度写回 data/story_state.yaml")
+    bk.add_argument("--no-publish", dest="no_publish", action="store_true",
+                    help="渲染后不推送在线正文预览")
     bk.add_argument("--no-save", action="store_true")
     _add_jazz_options(bk)
     _add_structure_options(bk)
@@ -1279,6 +1310,11 @@ def build_parser() -> argparse.ArgumentParser:
     rp = sub.add_parser("report", help="导出故事板（md/html）+ 偏离检测")
     rp.add_argument("--open", action="store_true", help="导出后用浏览器打开 HTML")
     rp.set_defaults(func=cmd_report)
+
+    pv = sub.add_parser("preview", help="生成并（默认）推送在线正文预览 HTML")
+    pv.add_argument("--no-publish", dest="no_publish", action="store_true",
+                    help="只生成到 docs/preview，不推送远端")
+    pv.set_defaults(func=cmd_preview)
 
     e = sub.add_parser("evaluate", help="评价一个已保存的章节文件")
     e.add_argument("file")

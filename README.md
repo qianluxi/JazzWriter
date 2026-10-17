@@ -1,4 +1,4 @@
-# JazzWriter（小说爵士引擎）`v2.17`
+# JazzWriter（小说爵士引擎）`v2.18`
 
 > **长篇小说结构即兴引擎 / Human-AI Improvisational Writing System。**
 > 主要产物不是小说正文，而是**故事方案、全书梗概、分卷结构、逐章摘要卡片，以及人物与关系网络**。
@@ -145,6 +145,7 @@ python main.py book --from-plan --pov 林 --no-save
 | `jam "场景" [--rounds N] [--render]` | 四角色合奏（多轮辩论），可渲染正文 |
 | `plan [--count N]` | 下一章场景骨架（有模型时由模型生成） |
 | `report [--open]` | 偏离检测 + 导出**交互式**故事板并打开 |
+| `preview [--no-publish]` | 生成并（默认）推送在线正文预览 `docs/preview/` |
 | `memory [--rebuild] [--query "…"]` | 向量记忆：重建 / 语义检索章节 |
 | `history [--chapter N] [--metric M] [--limit K]` | 运行历史与趋势 |
 | `advice [--apply]` | 查看 / 应用下一轮参数建议 |
@@ -239,6 +240,16 @@ python main.py book --from-plan --pov 林 --no-save
 - **运行记录**：每次 `play` 写 `output/runs/<run_id>.json`（cue/prompt/评价/建议）；`history` 做趋势统计；`--show-prompt` 打印的就是实际调用的同一份 prompt。
 - **项目隔离（完整）**：`BookPlan / 结构导出 / 向量库 / 故事板 / 运行记录(runs) / 章节正文(chapters) / 参数建议(advice_history) / story_state / jazz_state` 全部保存在**当前数据目录**下；`--data <dir>` 切换项目时互不干扰。
 
+### 在线正文预览（GitHub Pages）
+
+每次「按结构渲染正文」都会生成一个**自包含的阅读页**，并**默认同步到远端**：
+
+- 生成：`docs/preview/<项目>.html`，以及索引 `docs/preview/index.html`（多部作品并列）。
+- 自动同步：渲染后自动 `git add/commit/push docs/preview`；用 `NJE_PREVIEW_AUTOPUSH=0` 关闭，或 `book --from-plan --no-publish`。
+- 单独重发：`python main.py preview [--no-publish]`。
+- 在线地址：`https://<user>.github.io/<repo>/preview/<项目>.html`
+  （在仓库 **Settings → Pages → Source 选 `main` 分支 `/docs`** 后生效；本仓库即 `https://qianluxi.github.io/JazzWriter/preview/`）。
+
 ---
 
 ## Jam Session 合奏
@@ -305,7 +316,7 @@ feedback/       theme_check / character_check / novelty_check / conductor
 jam_session/    director / soloist / observer / editor / orchestrator
 llm/            base / mock / openai_provider / opencode_provider
 session.py  store.py  cli.py  gui.py  main.py
-tests/          回归测试（122 项）
+tests/          回归测试（125 项）
 projects/       独立小说的乐谱与稿子（示例见 projects/border2020/；产出随各项目目录保存）
 ```
 
@@ -325,7 +336,7 @@ projects/       独立小说的乐谱与稿子（示例见 projects/border2020/�
 ## 测试
 
 ```powershell
-python -m unittest discover -s tests     # 122 项：确定性 / 记录 / 连续性 / 约束注入 / 结构校验 / 人物关系 / 反馈边界 / 向量记忆 / Jam / 项目隔离 / 事实冲突审阅
+python -m unittest discover -s tests     # 125 项：确定性 / 记录 / 连续性 / 约束注入 / 结构校验 / 人物关系 / 反馈边界 / 向量记忆 / Jam / 项目隔离 / 事实冲突审阅
 ```
 
 ---
@@ -334,6 +345,7 @@ python -m unittest discover -s tests     # 122 项：确定性 / 记录 / 连续
 
 | 版本 | 内容 |
 | --- | --- |
+| **v2.18** | 在线正文预览：渲染正文即生成 `docs/preview/` 并默认推送远端（GitHub Pages 可访问） |
 | **v2.17** | 项目「编辑/重建」（改简介重生成整套设定，旧文件归档 `_backup_*`）· 打开项目有明确反馈/当前项目标签 · CLI `project show/regen` |
 | **v2.16** | 项目管理：输入世界观/剧情简介即在 `projects/` 下生成新项目（GUI 新建/打开项目 + CLI `project`） |
 | **v2.15** | 重即兴固定该章 POV 与参与人物（消除元数据不一致）· 项目 A/B 数据完全隔离的验收测试 · 端到端工作流测试 |

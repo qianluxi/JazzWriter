@@ -807,6 +807,13 @@ class App:
         self._set_tab("正文", "\n".join(body))
         self._set_tab("评价", "\n\n".join(evals))
         self.nb.select(list(self.tabs).index("正文"))
+        info = self.session.last_publish if self.session else None
+        if info:
+            where = info.get("url") or info.get("path")
+            self.status_var.set(f"已渲染并生成在线预览：{where}")
+            detail = "已推送到远端" if info.get("pushed") else f"未推送（{info.get('message') or '仅本地'}）"
+            messagebox.showinfo("在线正文预览",
+                                f"已生成：{info.get('path')}\n{where}\n{detail}")
 
     def on_jam(self) -> None:
         if self.session is None:
