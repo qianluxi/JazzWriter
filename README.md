@@ -1,4 +1,4 @@
-# JazzWriter（小说爵士引擎）`v2.21`
+# JazzWriter（小说爵士引擎）`v2.22`
 
 > **长篇小说结构即兴引擎 / Human-AI Improvisational Writing System。**
 > 主要产物不是小说正文，而是**故事方案、全书梗概、分卷结构、逐章摘要卡片，以及人物与关系网络**。
@@ -115,7 +115,8 @@ python main.py book --from-plan --pov 林 --no-save
 - **修改世界观 / 重建**：选中项目后点「**编辑/重建**」——修改简介并重建，程序会重新生成整套设定；
   **旧文件（含已保存的结构 book_plan）会先移入 `_backup_*` 目录**，避免用旧结构渲染新世界。
 - **删除项目**：选中项目后点「**删除项目**」——删除本地目录，并**同步移除在线预览**（`docs/preview/<项目>.html`）并推送，`preview/` 索引随之更新。
-- **安全护栏**：`project delete` / `project regen` 只作用于 **`projects/` 内的真实项目目录**；传入该目录之外的路径（或缺少 `story.yaml` 的目录）会被**拒绝**。CLI 同样受限，不依赖 GUI 选项。
+- **安全护栏**：`project delete` / `project regen` 只作用于 **`projects/` 的直系子目录**，且必须是含 `story.yaml` 的真实项目；校验前会 `resolve()` 解析符号链接（防越权跳转），传入根目录之外、根目录本身或缺 `story.yaml` 的路径都会被**拒绝**。CLI 同样受限，不依赖 GUI 选项。
+- **发布安全**：预览自动提交**只含 `docs/preview` 目标文件**（用 `git commit --only`），并**拒绝非法的预览路径**（`..`、绝对路径、pathspec magic 等）；若当前分支**已有未推送提交**或没有 `origin` upstream，会自动中止发布，避免连带公开其它改动。
 - **CLI**：
   ```powershell
   python main.py project list
@@ -250,7 +251,7 @@ python main.py book --from-plan --pov 林 --no-save
 
 - 生成：`docs/preview/<项目>.html`，以及索引 `docs/preview/index.html`（多部作品并列）。
 - **字数统计**：每章标注字数、页脚显示全书总字数；GUI「正文」页与 CLI `book` 概览表同样给出每章/全书字数。
-- 自动同步：渲染后自动提交并推送（push 失败自动重试）。**提交范围被限定为 `docs/preview` 目标文件**，不会连带提交你已暂存的其它改动；用 `NJE_PREVIEW_AUTOPUSH=0` 关闭，或 `book --from-plan --no-publish`。
+- 自动同步：渲染后自动提交并推送（push 失败自动重试）。**提交范围被限定为 `docs/preview` 目标文件**，不会连带提交你已暂存的其它改动；**若当前分支有未推送提交或没有 `origin` upstream 则自动中止**（避免误公开）。用 `NJE_PREVIEW_AUTOPUSH=0` 关闭，或 `book --from-plan --no-publish`。
 - 单独重发：`python main.py preview [--no-publish]`。
 - 在线地址：`https://<user>.github.io/<repo>/preview/<项目>.html`
   （本仓库即 `https://qianluxi.github.io/JazzWriter/preview/`）。
@@ -325,7 +326,7 @@ feedback/       theme_check / character_check / novelty_check / conductor
 jam_session/    director / soloist / observer / editor / orchestrator
 llm/            base / mock / openai_provider / opencode_provider
 session.py  store.py  cli.py  gui.py  main.py
-tests/          回归测试（135 项）
+tests/          回归测试（141 项）
 projects/       独立小说的乐谱与稿子（示例见 projects/border2020/；产出随各项目目录保存）
 ```
 
@@ -345,7 +346,7 @@ projects/       独立小说的乐谱与稿子（示例见 projects/border2020/�
 ## 测试
 
 ```powershell
-python -m unittest discover -s tests     # 135 项：确定性 / 记录 / 连续性 / 约束注入 / 结构校验 / 人物关系 / 反馈边界 / 向量记忆 / Jam / 项目隔离 / 事实冲突审阅
+python -m unittest discover -s tests     # 141 项：确定性 / 记录 / 连续性 / 约束注入 / 结构校验 / 人物关系 / 反馈边界 / 向量记忆 / Jam / 项目隔离 / 事实冲突审阅
 ```
 
 ---
@@ -354,6 +355,7 @@ python -m unittest discover -s tests     # 135 项：确定性 / 记录 / 连续
 
 | 版本 | 内容 |
 | --- | --- |
+| **v2.22** | 并入专家 P1 补丁的加固：项目校验收紧为 `projects/` **直系子目录** + 符号链接解析；预览路径合法性校验；**本地有未推送提交 / 无 origin upstream 时自动发布中止**（避免连带公开） |
 | **v2.21** | 安全修复：`project delete/regen` 仅限 `projects/` 内真实项目（防越界删改）· 预览自动提交**只含 `docs/preview` 目标文件**，不牵连其它已暂存改动 |
 | **v2.20** | 每章/全书**字数统计**（GUI/CLI/在线预览）· 预览推送失败自动重试 |
 | **v2.19** | 删除项目：本地删除 + 同步移除在线预览并推送（GUI「删除项目」/ CLI `project delete`） |

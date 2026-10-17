@@ -38,8 +38,8 @@ class RegenTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             manager = ProjectManager(root=Path(tmp) / "projects")
             path = manager.create("雪山", BRIEF_A)
-            self.assertEqual(manager.find("雪山"), path)
-            self.assertEqual(manager.find(path.name), path)
+            self.assertEqual(manager.find("雪山").resolve(), path.resolve())
+            self.assertEqual(manager.find(path.name).resolve(), path.resolve())
             self.assertIsNone(manager.find("不存在"))
 
     def test_regenerate_without_brief_reuses_brief_md(self):

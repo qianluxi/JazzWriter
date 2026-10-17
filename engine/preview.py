@@ -102,8 +102,26 @@ def slugify(text: str) -> str:
 
 
 def git_publish(repo_root, message: str, *, add_path: str = "docs/preview") -> Dict[str, Any]:
-    """git add/commit/push one preview path. Never raises; returns status."""
+    """Commit and push only the preview path, refusing unsafe branch states.
+
+    Existing staged changes outside ``add_path`` are left staged but are not
+    included in the preview commit. If the current branch is already ahead of
+    its ``origin`` upstream, publication is aborted: pushing HEAD would also
+    publish those earlier commits.
+    """
     import subprocess
+    from pathlib import PurePosixPath
+
+    # Repository-relative paths only: reject traversal, absolute paths and Git
+    # pathspec magic instead of letting a caller-supplied path broaden the op.
+    path_text = str(add_path).replace("\\", "/")
+    path = PurePosixPath(path_text)
+    if (not path_text or path.is_absolute() or not path.parts
+            or ".." in path.parts or path.parts[:2] != ("docs", "preview")
+            or ":" in path.parts[0] or path_text.startswith(":")
+            or path_text.startswith("-")):
+        return {"pushed": False, "message": f"unsafe preview path: {add_path}"}
+    path_arg = path.as_posix()
 
     def run(args):
         return subprocess.run(["git", "-C", str(repo_root)] + args,
@@ -112,15 +130,45 @@ def git_publish(repo_root, message: str, *, add_path: str = "docs/preview") -> D
     try:
         if run(["rev-parse", "--is-inside-work-tree"]).returncode != 0:
             return {"pushed": False, "message": "not a git repo"}
-        run(["add", "--", add_path])
-        # commit ONLY this pathspec so unrelated already-staged files are left alone
-        status = run(["status", "--porcelain", "--", add_path])
-        if not (status.stdout or "").strip():
-            return {"pushed": False, "message": "no changes"}
-        commit = run(["commit", "-m", message, "--", add_path])
+
+        upstream = run(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"])
+        if upstream.returncode != 0:
+            return {"pushed": False,
+                    "message": "当前分支没有 upstream；预览未自动提交或推送"}
+        upstream_name = upstream.stdout.strip()
+        if not upstream_name.startswith("origin/"):
+            return {"pushed": False,
+                    "message": f"当前 upstream 为 {upstream_name!r} 而非 origin；预览未自动推送"}
+
+        ahead = run(["rev-list", "--count", "@{u}..HEAD"])
+        if ahead.returncode != 0 or not ahead.stdout.strip().isdigit():
+            return {"pushed": False,
+                    "message": "无法确认本地分支与 origin 的提交差异；为避免误推送，已中止"}
+        ahead_count = int(ahead.stdout.strip())
+        if ahead_count:
+            return {"pushed": False, "message": (
+                f"本地分支已有 {ahead_count} 个尚未推送的提交；为避免一并公开其他改动，"
+                "本次预览未自动提交或推送。请先处理这些提交后再发布。")}
+
+        added = run(["add", "--", path_arg])
+        if added.returncode != 0:
+            combined = (added.stderr or added.stdout or "git add failed").strip()
+            return {"pushed": False, "message": combined[:200]}
+
+        staged = run(["diff", "--cached", "--quiet", "--", path_arg])
+        if staged.returncode == 0:
+            return {"pushed": False, "message": "预览路径没有待提交的改动"}
+        if staged.returncode != 1:
+            combined = (staged.stderr or staged.stdout or "git diff failed").strip()
+            return {"pushed": False, "message": combined[:200]}
+
+        # --only limits the commit to this path even when unrelated files are
+        # already staged in the user's index.
+        commit = run(["commit", "--only", "-m", message, "--", path_arg])
         combined = (commit.stdout or "") + (commit.stderr or "")
-        if commit.returncode != 0 and "nothing to commit" not in combined:
+        if commit.returncode != 0:
             return {"pushed": False, "message": combined.strip()[:200]}
+
         last = ""
         for _ in range(3):  # transient network resets are common; retry a few times
             push = run(["push", "origin", "HEAD"])

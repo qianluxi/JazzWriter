@@ -33,3 +33,5 @@ projects/**/chapters/*
 
 # local novel projects are kept local (not published)
 projects/
+# expert review bundles (reference only)
+JazzWriter_P1_fix_bundle/

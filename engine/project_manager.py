@@ -258,43 +258,43 @@ class ProjectManager:
         self._write(directory, name.strip(), brief or "", spec)
         return directory
 
-    def _is_under_root(self, path: Path) -> bool:
-        root = self.root.resolve()
-        try:
-            p = Path(path).resolve()
-            p.relative_to(root)
-            return p != root
-        except ValueError:
-            return False
+    def _validated_project(self, project: Path) -> Path:
+        """Resolve and validate a project before reading or mutating it.
 
-    def _require_project(self, path: Path) -> Path:
-        """Reject anything outside the projects root (guards delete/regenerate)."""
-        p = Path(path).resolve()
-        root = self.root.resolve()
-        try:
-            p.relative_to(root)
-        except ValueError:
-            raise ValueError(f"拒绝操作 projects/ 之外的目录：{p}")
-        if p == root:
-            raise ValueError("不能对整个 projects 根目录操作")
-        if not (p / "story.yaml").exists():
-            raise ValueError(f"不是项目目录（缺少 story.yaml）：{p}")
-        return p
+        Projects must be **direct children** of ``self.root`` and contain a
+        ``story.yaml``. Resolving symlinks before checking containment prevents
+        a project-directory symlink from escaping the projects root.
+        """
+        root = self.root.expanduser().resolve()
+        candidate = Path(project).expanduser().resolve()
+        if candidate == root or candidate.parent != root:
+            raise ValueError(
+                f"拒绝访问项目根目录之外的路径：{candidate}（项目根目录：{root}）")
+        if not candidate.is_dir():
+            raise FileNotFoundError(f"项目目录不存在：{candidate}")
+        if not (candidate / "story.yaml").is_file():
+            raise ValueError(f"不是有效的 JazzWriter 项目目录：{candidate}")
+        return candidate
 
     def find(self, target: str) -> Optional[Path]:
         """Resolve a project by directory name or display title.
 
-        An arbitrary existing directory is **not** accepted unless it is a real
-        project *inside* the projects root (with story.yaml) — otherwise the
-        target is matched against the known projects by dir name / title.
+        An arbitrary existing directory is only accepted if it is a **valid
+        project inside** the projects root; otherwise the target is matched
+        against the known projects by dir name / title.
         """
-        direct = Path(target)
-        if (direct.is_dir() and self._is_under_root(direct)
-                and (direct / "story.yaml").exists()):
-            return direct
+        direct = Path(target).expanduser()
+        if direct.is_dir():
+            try:
+                return self._validated_project(direct)
+            except (ValueError, FileNotFoundError):
+                pass
         for it in self.list_projects():
             if it["dir"] == target or it["name"] == target:
-                return it["path"]
+                try:
+                    return self._validated_project(it["path"])
+                except (ValueError, FileNotFoundError):
+                    continue
         return None
 
     def read_brief(self, project: Path) -> str:
@@ -320,10 +320,7 @@ class ProjectManager:
         **moved into a timestamped `_backup_*` folder** first, so a rebuilt world
         never silently renders a stale structure.
         """
-        project = Path(project)
-        if not project.exists():
-            raise FileNotFoundError(f"项目不存在：{project}")
-        project = self._require_project(project)
+        project = self._validated_project(Path(project))
         try:
             data = yaml.safe_load((project / "story.yaml").read_text(encoding="utf-8")) or {}
             title = name or (data.get("theme") or {}).get("title") or project.name
@@ -350,10 +347,9 @@ class ProjectManager:
 
         Returns ``{path, name, preview_removed, pushed, message}``.
         """
-        project = Path(project)
-        if not project.exists():
-            raise FileNotFoundError(f"项目不存在：{project}")
-        project = self._require_project(project)
+        # Re-check here even when callers used find(): this is a destructive API
+        # and must not trust a caller-supplied path.
+        project = self._validated_project(Path(project))
         slug = slugify(project.name)
         preview_file = self.preview_dir / f"{slug}.html"
         removed_preview = False
