@@ -33,5 +33,7 @@ projects/**/chapters/*
 
 # local novel projects are kept local (not published)
 projects/
+# World Studio outputs are local creations too
+worlds/
 # expert review bundles (reference only)
 JazzWriter_P1_fix_bundle/
