@@ -112,8 +112,12 @@ def git_publish(repo_root, message: str, *, add_path: str = "docs/preview") -> D
     try:
         if run(["rev-parse", "--is-inside-work-tree"]).returncode != 0:
             return {"pushed": False, "message": "not a git repo"}
-        run(["add", add_path])
-        commit = run(["commit", "-m", message])
+        run(["add", "--", add_path])
+        # commit ONLY this pathspec so unrelated already-staged files are left alone
+        status = run(["status", "--porcelain", "--", add_path])
+        if not (status.stdout or "").strip():
+            return {"pushed": False, "message": "no changes"}
+        commit = run(["commit", "-m", message, "--", add_path])
         combined = (commit.stdout or "") + (commit.stderr or "")
         if commit.returncode != 0 and "nothing to commit" not in combined:
             return {"pushed": False, "message": combined.strip()[:200]}

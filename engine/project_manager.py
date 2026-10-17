@@ -258,10 +258,39 @@ class ProjectManager:
         self._write(directory, name.strip(), brief or "", spec)
         return directory
 
+    def _is_under_root(self, path: Path) -> bool:
+        root = self.root.resolve()
+        try:
+            p = Path(path).resolve()
+            p.relative_to(root)
+            return p != root
+        except ValueError:
+            return False
+
+    def _require_project(self, path: Path) -> Path:
+        """Reject anything outside the projects root (guards delete/regenerate)."""
+        p = Path(path).resolve()
+        root = self.root.resolve()
+        try:
+            p.relative_to(root)
+        except ValueError:
+            raise ValueError(f"拒绝操作 projects/ 之外的目录：{p}")
+        if p == root:
+            raise ValueError("不能对整个 projects 根目录操作")
+        if not (p / "story.yaml").exists():
+            raise ValueError(f"不是项目目录（缺少 story.yaml）：{p}")
+        return p
+
     def find(self, target: str) -> Optional[Path]:
-        """Resolve a project by directory name or display title."""
+        """Resolve a project by directory name or display title.
+
+        An arbitrary existing directory is **not** accepted unless it is a real
+        project *inside* the projects root (with story.yaml) — otherwise the
+        target is matched against the known projects by dir name / title.
+        """
         direct = Path(target)
-        if direct.is_dir():
+        if (direct.is_dir() and self._is_under_root(direct)
+                and (direct / "story.yaml").exists()):
             return direct
         for it in self.list_projects():
             if it["dir"] == target or it["name"] == target:
@@ -292,6 +321,9 @@ class ProjectManager:
         never silently renders a stale structure.
         """
         project = Path(project)
+        if not project.exists():
+            raise FileNotFoundError(f"项目不存在：{project}")
+        project = self._require_project(project)
         try:
             data = yaml.safe_load((project / "story.yaml").read_text(encoding="utf-8")) or {}
             title = name or (data.get("theme") or {}).get("title") or project.name
@@ -321,6 +353,7 @@ class ProjectManager:
         project = Path(project)
         if not project.exists():
             raise FileNotFoundError(f"项目不存在：{project}")
+        project = self._require_project(project)
         slug = slugify(project.name)
         preview_file = self.preview_dir / f"{slug}.html"
         removed_preview = False

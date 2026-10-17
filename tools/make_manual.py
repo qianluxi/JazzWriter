@@ -106,7 +106,7 @@ def build() -> Document:
     _cjk(srun.font)
     ver = doc.add_paragraph()
     ver.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    vrun = ver.add_run("适用版本 v2.20　·　Novel Jazz Engine")
+    vrun = ver.add_run("适用版本 v2.21　·　Novel Jazz Engine")
     vrun.font.size = Pt(11)
     vrun.font.color.rgb = RGBColor.from_string("999999")
     _cjk(vrun.font)
@@ -197,6 +197,8 @@ def build() -> Document:
         "编辑/重建：修改项目简介并重建，程序按新简介重新生成整套设定；旧文件（含已保存结构）"
         "会移入 _backup_* 目录，之后需重新“生成创意→采纳并展开”。",
         "删除项目：删除本地目录，并同步移除在线预览（docs/preview/<项目>.html）并推送，索引随之更新。",
+        "安全护栏：删除/重建只作用于 projects/ 内的真实项目目录；该目录之外的路径会被拒绝（命令行同样受限）。"
+        "自动发布的提交范围也仅限 docs/preview 的目标文件，不会连带提交你已暂存的其它改动。",
     ])
     p(doc, "命令行：python main.py project list / show <目录> / new \"名称\" --brief \"…\" / "
            "regen <目录> --file 简介.txt；之后用 --data projects/<目录> 继续。")
