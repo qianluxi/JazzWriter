@@ -106,7 +106,7 @@ def build() -> Document:
     _cjk(srun.font)
     ver = doc.add_paragraph()
     ver.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    vrun = ver.add_run("适用版本 v2.14　·　Novel Jazz Engine")
+    vrun = ver.add_run("适用版本 v2.15　·　Novel Jazz Engine")
     vrun.font.size = Pt(11)
     vrun.font.color.rgb = RGBColor.from_string("999999")
     _cjk(vrun.font)
@@ -179,8 +179,9 @@ def build() -> Document:
     h2(doc, "第 5 步：编辑、锁定与局部重新即兴")
     p(doc, "在「结构树」选中一章 →「章节卡片」可直接编辑 →点「保存章节卡片编辑」。"
            "认可的情节可「锁定」（整章锁定或字段级锁定）。")
-    p(doc, "想改某章时点「重新即兴选中章」：系统**先给出候选**（显示改动字段），你**采纳后才写回**；"
-           "未选中的章节与锁定内容不受影响。")
+    p(doc, "想改某章时点「重新即兴选中章」：系统先给出候选（显示改动字段），你采纳后才写回；"
+           "未选中的章节与锁定内容不受影响。重新即兴会保持该章的 POV 与参与人物不变（只改行动/冲突/结果等），"
+           "保证人物记录与新章节一致。")
 
     h2(doc, "第 6 步：导出")
     p(doc, "点「导出结构 Markdown」得到结构文件；点「导出故事板（md/html）」得到可视化故事板"

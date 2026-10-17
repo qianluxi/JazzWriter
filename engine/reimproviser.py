@@ -74,16 +74,19 @@ class ChapterReimproviser:
                      if c.name == name_or_id or c.effective_id == name_or_id), None)
 
     def _refresh_metadata(self, ch: ChapterPlan, base: ChapterPlan) -> None:
-        """Rebuild structured character metadata so it matches the new content
-        (a re-improvised chapter must not keep the old decisions/knowledge)."""
-        pov = self._resolve(ch.pov) or self._resolve(base.pov)
+        """Rebuild structured character metadata so it matches the new content.
+
+        Re-improvisation keeps the chapter's **POV and participants fixed** (only
+        the content changes), so the displayed POV, stable id and involvement
+        list always stay consistent. Decisions/knowledge/relationships are then
+        rebuilt for that fixed POV.
+        """
+        pov = self._resolve(base.pov) or self._resolve(base.pov_character_id)
         pov_id = pov.effective_id if pov else (
-            ch.pov_character_id or base.pov_character_id or ch.pov)
+            base.pov_character_id or base.pov or ch.pov)
+        ch.pov = base.pov
         ch.pov_character_id = pov_id
-        # participation follows the new POV: keep others, but never the old POV alone
-        involved = [pov_id] + [x for x in base.characters_involved
-                               if x and x != base.pov_character_id]
-        ch.characters_involved = list(dict.fromkeys(involved))
+        ch.characters_involved = list(base.characters_involved) or [pov_id]
         ch.character_decisions = [CharacterDecision(
             character_id=pov_id, decision=ch.key_action or ch.summary,
             motivation=(pov.current_goal or pov.desire or "") if pov else "")]
@@ -184,6 +187,8 @@ class ChapterReimproviser:
             f"上一章摘要：{prev.summary if prev else '（无）'}\n"
             f"下一章摘要：{nxt.summary if nxt else '（无）'}\n"
             f"可尝试的即兴操作：{ops}\n"
+            f"固定项：本章 POV 固定为 {base.pov}，参与人物固定为 {base.characters_involved}；"
+            "只改关键行动/冲突/结果/信息变化/人物变化，不要改变 POV 或参与人物（也不要在 JSON 里输出这两项）。\n"
             f"硬约束：{'；'.join(self._constraints(base.pov)) or '（无）'}\n"
             "每个候选必须改变关键行动/冲突/信息结构/结局中的至少一项，且不得与硬约束冲突。"
             '输出 JSON：{"candidates":[{"label":"","chapter":{"title":"","function":"","pov":"",'
