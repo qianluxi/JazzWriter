@@ -145,7 +145,7 @@ python main.py book --from-plan --pov 林 --no-save
 | `jam "场景" [--rounds N] [--render]` | 四角色合奏（多轮辩论），可渲染正文 |
 | `plan [--count N]` | 下一章场景骨架（有模型时由模型生成） |
 | `report [--open]` | 偏离检测 + 导出**交互式**故事板并打开 |
-| `preview [--no-publish]` | 生成并（默认）推送在线正文预览 `docs/preview/` |
+| `preview [--no-publish]` | 生成并（默认）推送在线正文预览 `preview/` |
 | `memory [--rebuild] [--query "…"]` | 向量记忆：重建 / 语义检索章节 |
 | `history [--chapter N] [--metric M] [--limit K]` | 运行历史与趋势 |
 | `advice [--apply]` | 查看 / 应用下一轮参数建议 |
@@ -244,14 +244,15 @@ python main.py book --from-plan --pov 林 --no-save
 
 每次「按结构渲染正文」都会生成一个**自包含的阅读页**，并**默认同步到远端**：
 
-- 生成：`docs/preview/<项目>.html`，以及索引 `docs/preview/index.html`（多部作品并列）。
-- 自动同步：渲染后自动 `git add/commit/push docs/preview`；用 `NJE_PREVIEW_AUTOPUSH=0` 关闭，或 `book --from-plan --no-publish`。
+- 生成：仓库根目录 `preview/<项目>.html`，以及索引 `preview/index.html`（多部作品并列）。
+- 自动同步：渲染后自动 `git add/commit/push preview`；用 `NJE_PREVIEW_AUTOPUSH=0` 关闭，或 `book --from-plan --no-publish`。
 - 单独重发：`python main.py preview [--no-publish]`。
 - 在线地址：`https://<user>.github.io/<repo>/preview/<项目>.html`
   （本仓库即 `https://qianluxi.github.io/JazzWriter/preview/`）。
 - 开启方法（**仓库**设置，别点右上角头像里的账号设置——那是 "Verified domains"）：
   打开 `https://github.com/qianluxi/JazzWriter/settings/pages` → **Build and deployment** →
-  Source 选 **Deploy from a branch** → Branch `main`、Folder `/docs` → Save。
+  Source 选 **Deploy from a branch** → Branch `main`、Folder **`/(root)`** → Save。
+  （预览放在根目录 `preview/`，因此用默认的根目录源即可；若选择 `/docs` 源，地址会变成 `/docs/preview/`。）
 
 ---
 

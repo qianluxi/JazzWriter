@@ -30,3 +30,6 @@ data/runs/*
 data/chapters/*
 projects/**/runs/*
 projects/**/chapters/*
+
+# local novel projects are kept local (not published)
+projects/
