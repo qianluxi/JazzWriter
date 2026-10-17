@@ -1,4 +1,4 @@
-# JazzWriter（小说爵士引擎）`v2.15`
+# JazzWriter（小说爵士引擎）`v2.16`
 
 > **长篇小说结构即兴引擎 / Human-AI Improvisational Writing System。**
 > 主要产物不是小说正文，而是**故事方案、全书梗概、分卷结构、逐章摘要卡片，以及人物与关系网络**。
@@ -103,10 +103,28 @@ python main.py book --from-plan --pov 林 --no-save
 
 ---
 
+## 项目管理
+
+多部小说互不干扰：每个项目是 `projects/<目录>/` 下的一套独立乐谱。
+
+- **新建主题**：GUI 顶部「**新建项目**」——填写名称 + 世界观/大致剧情（简介框），程序据此生成
+  `story.yaml / characters.yaml / relationships.yaml / motifs.yaml / story_state.yaml / brief.md`
+  （有模型时由模型扩展人物与关系；离线给可编辑的起步集）。
+- **继续主题**：顶部「项目」下拉选择，点「**打开**」；数据目录随之切换，后续规划/正文/历史都写在该项目下。
+- **CLI**：
+  ```powershell
+  python main.py project list
+  python main.py project new "界河纪事" --brief "2020年代中俄边境……"
+  python main.py --data projects/界河纪事 status      # 继续该项目
+  ```
+
+---
+
 ## 命令速查
 
 | 命令 | 作用 |
 | --- | --- |
+| `project list` / `project new "名称" --brief "…"` | 列出项目 / 从简介生成新项目 |
 | `status` | 查看主题 / 人物 / 和声 / 动机 / 故事状态 |
 | `chars` | 人物库、使用情况、关系网络与关系变化 |
 | `outline "前提" --branches 3` | 发散故事方案（五维对照） |
@@ -259,6 +277,8 @@ python main.py play "..." --provider opencode
 - `data/motifs.yaml` — 意象定义（运行时意义演变写入 `motif_state.yaml`）
 - `data/story_state.yaml` — 故事圣经（事实 / 认知 / 线索 / 近期事件）
 
+`projects/<目录>/` 保存各自独立的小说项目（`python main.py project new` 或 GUI 新建）。
+
 `python main.py init --force` 重新写入示例乐谱。`--data <dir>` 可切换到独立项目乐谱（如同时维护多部小说）——
 **全书规划、结构导出、向量库、故事板、运行记录、章节正文与参数状态都保存在该目录下**，切换项目互不干扰。
 
@@ -279,7 +299,7 @@ feedback/       theme_check / character_check / novelty_check / conductor
 jam_session/    director / soloist / observer / editor / orchestrator
 llm/            base / mock / openai_provider / opencode_provider
 session.py  store.py  cli.py  gui.py  main.py
-tests/          回归测试（115 项）
+tests/          回归测试（119 项）
 projects/       独立小说的乐谱与稿子（示例见 projects/border2020/；产出随各项目目录保存）
 ```
 
@@ -299,7 +319,7 @@ projects/       独立小说的乐谱与稿子（示例见 projects/border2020/�
 ## 测试
 
 ```powershell
-python -m unittest discover -s tests     # 115 项：确定性 / 记录 / 连续性 / 约束注入 / 结构校验 / 人物关系 / 反馈边界 / 向量记忆 / Jam / 项目隔离 / 事实冲突审阅
+python -m unittest discover -s tests     # 119 项：确定性 / 记录 / 连续性 / 约束注入 / 结构校验 / 人物关系 / 反馈边界 / 向量记忆 / Jam / 项目隔离 / 事实冲突审阅
 ```
 
 ---
@@ -308,6 +328,7 @@ python -m unittest discover -s tests     # 115 项：确定性 / 记录 / 连续
 
 | 版本 | 内容 |
 | --- | --- |
+| **v2.16** | 项目管理：输入世界观/剧情简介即在 `projects/` 下生成新项目（GUI 新建/打开项目 + CLI `project`） |
 | **v2.15** | 重即兴固定该章 POV 与参与人物（消除元数据不一致）· 项目 A/B 数据完全隔离的验收测试 · 端到端工作流测试 |
 | **v2.14** | 新增「与已确定事实的语义冲突」显式 LLM 审阅项（带章号与引用事实；离线明确标注"需模型、不判定"） |
 | **v2.13** | 修复：运行记录/正文/参数/状态也随数据目录隔离 · 重复人物 id 不再丢人且可被检查 · 重即兴同步刷新参与人物与 POV id、来源锚定到线索 · 离线清洗覆盖全部字段（含标题/钩子/线索，逐 POV 秘密）· 无可作视角人物时报错 · 取消 compose_book 场景循环复用 |

@@ -19,6 +19,7 @@ import json
 import threading
 import tkinter as tk
 import tkinter.font as tkfont
+from pathlib import Path
 from tkinter import messagebox, ttk
 
 from core.chapter_plan import (apply_text, format_decisions, format_knowledge,
@@ -26,7 +27,9 @@ from core.chapter_plan import (apply_text, format_decisions, format_knowledge,
                                parse_relationships, to_text)
 from core.improviser import STYLES
 from engine.outline_expander import TEMPLATE_LABELS
+from engine.project_manager import ProjectManager
 from engine.semantic_similarity import MODES as EVAL_MODES
+from llm import get_provider
 from improvisation.improvisation_score import MODE_PRESETS
 from session import Session
 from store import load_runs, save_take
@@ -94,6 +97,8 @@ class App:
         self.ideas = []
         self._flight = SingleFlight()
         self._buttons: list[ttk.Button] = []
+        self.data_dir: Path | None = None
+        self._project_map: dict[str, Path] = {}
         root.title("JazzWriter · 小说结构即兴引擎")
         root.geometry("1280x820")
         _setup_fonts(root)
@@ -115,6 +120,13 @@ class App:
         self.eval_var = tk.StringVar(value="lexical")
         ttk.Combobox(bar, textvariable=self.eval_var, values=list(EVAL_MODES),
                      width=10, state="readonly").pack(side="left", padx=(4, 12))
+        ttk.Label(bar, text="项目:").pack(side="left")
+        self.project_var = tk.StringVar(value="（默认 data/）")
+        self.project_combo = ttk.Combobox(bar, textvariable=self.project_var,
+                                         width=18, state="readonly")
+        self.project_combo.pack(side="left", padx=(4, 4))
+        ttk.Button(bar, text="打开", command=self.on_open_project).pack(side="left")
+        ttk.Button(bar, text="新建项目", command=self.on_new_project).pack(side="left", padx=(4, 12))
         ttk.Button(bar, text="重载设定", command=self._reload_session).pack(side="left")
         self.loaded_var = tk.StringVar(value="")
         ttk.Label(bar, textvariable=self.loaded_var, foreground="#0a7").pack(side="right")
@@ -315,10 +327,13 @@ class App:
     # -- session ------------------------------------------------------------
     def _reload_session(self) -> None:
         try:
-            self.session = Session.load(provider=self.provider_var.get(), eval_mode=self.eval_var.get())
+            self.session = Session.load(data_dir=self.data_dir,
+                                        provider=self.provider_var.get(),
+                                        eval_mode=self.eval_var.get())
         except Exception as exc:  # noqa: BLE001
             messagebox.showerror("加载失败", f"无法加载设定:\n{exc}")
             return
+        self._refresh_projects()
         names = [c.name for c in self.session.characters.values()]
         self.pov_combo.configure(values=names)
         if names and self.pov_var.get() not in names:
@@ -327,6 +342,78 @@ class App:
         self._set_tab("状态", self._status_text())
         self._set_tab("人物", self._characters_text())
         self._populate_tree()
+
+    # -- project management --------------------------------------------------
+    def _refresh_projects(self) -> None:
+        try:
+            items = ProjectManager().list_projects()
+        except Exception:  # noqa: BLE001
+            items = []
+        self._project_map = {it["name"]: it["path"] for it in items}
+        self.project_combo.configure(values=["（默认 data/）"] + list(self._project_map))
+        if self.data_dir is None:
+            self.project_var.set("（默认 data/）")
+        else:
+            for name, p in self._project_map.items():
+                if Path(p).resolve() == Path(self.data_dir).resolve():
+                    self.project_var.set(name)
+                    break
+
+    def on_open_project(self) -> None:
+        name = self.project_var.get()
+        if name in ("", "（默认 data/）") or name not in self._project_map:
+            self.data_dir = None
+        else:
+            self.data_dir = self._project_map[name]
+        self._reload_session()
+        self.status_var.set(f"已打开：{name}")
+
+    def _project_llm(self):
+        try:
+            provider = get_provider(self.provider_var.get())
+        except Exception:  # noqa: BLE001
+            return None
+        return provider if getattr(provider, "name", "mock") not in ("mock", "") else None
+
+    def on_new_project(self) -> None:
+        win = tk.Toplevel(self.root)
+        win.title("新建项目")
+        win.transient(self.root)
+        win.grab_set()
+        win.geometry("720x580")
+        ttk.Label(win, text="项目名称").pack(anchor="w", padx=10, pady=(10, 2))
+        name_var = tk.StringVar(value="新主题")
+        ttk.Entry(win, textvariable=name_var, width=44).pack(anchor="w", padx=10)
+        ttk.Label(win, text="世界观 / 大致剧情（程序据此生成人物、关系与意象）").pack(
+            anchor="w", padx=10, pady=(10, 2))
+        brief = tk.Text(win, height=18, wrap="word")
+        brief.pack(fill="both", expand=True, padx=10)
+        brief.insert("1.0", "例如：2020年代的中俄边境小镇，一条冬天封冻的界河。"
+                            "一起旧事故、两种互相矛盾的记录，以及几个不肯说出往事的人……")
+
+        def create():
+            name = name_var.get().strip()
+            text = brief.get("1.0", "end").strip()
+            if not name or not text:
+                messagebox.showwarning("缺少信息", "请填写项目名称与简介。", parent=win)
+                return
+            win.destroy()
+
+            def work():
+                return ProjectManager(llm=self._project_llm()).create(name, text)
+
+            self._async(work, self._on_project_created, label="正在生成新项目…")
+
+        btns = ttk.Frame(win)
+        btns.pack(fill="x", pady=8)
+        ttk.Button(btns, text="创建", command=create).pack(side="right", padx=6)
+        ttk.Button(btns, text="取消", command=win.destroy).pack(side="right")
+
+    def _on_project_created(self, path) -> None:
+        self.data_dir = Path(path)
+        self._reload_session()
+        self.status_var.set(f"新项目已创建并打开：{path}")
+        messagebox.showinfo("已创建", f"项目已生成于：\n{path}\n\n可以直接开始「生成创意方案」。")
 
     # -- async runner (snapshot-first, single-flight, disable buttons) ------
     def _async(self, work, done, *, label="处理中…") -> bool:

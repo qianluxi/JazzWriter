@@ -829,6 +829,51 @@ def cmd_evaluate(args) -> int:
     return 0
 
 
+def cmd_project(args) -> int:
+    from engine.project_manager import ProjectManager
+    from llm import get_provider
+
+    provider = get_provider(getattr(args, "provider", None))
+    llm = provider if getattr(provider, "name", "mock") not in ("mock", "") else None
+    manager = ProjectManager(llm=llm)
+
+    if args.action == "list":
+        items = manager.list_projects()
+        if not items:
+            console.print("[yellow]尚无项目（projects/ 为空）。[/yellow]")
+            return 0
+        table = Table(title="项目列表 · Projects", header_style="bold")
+        table.add_column("名称")
+        table.add_column("目录")
+        for it in items:
+            table.add_row(it["name"], it["dir"])
+        console.print(table)
+        console.print("[dim]用 `--data projects/<目录>`（或 GUI「打开项目」）继续该项目。[/dim]")
+        return 0
+
+    # new
+    if args.file:
+        brief = Path(args.file).read_text(encoding="utf-8")
+    elif args.brief:
+        brief = args.brief
+    elif not sys.stdin.isatty():
+        brief = sys.stdin.read()
+    else:
+        brief = ""
+    name = args.name or "新项目"
+    if not (brief or "").strip():
+        console.print("[red]缺少世界观/剧情简介。用 --brief、--file 或管道提供。[/red]")
+        return 2
+    try:
+        path = manager.create(name, brief)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        return 2
+    console.print(f"[green]已创建项目[/green] 《{name}》 → {path}")
+    console.print(f"[dim]继续创作：python main.py --data {path} status[/dim]")
+    return 0
+
+
 def cmd_memory(args) -> int:
     session = _build_session(args)
     try:
@@ -1212,6 +1257,13 @@ def build_parser() -> argparse.ArgumentParser:
     mem.add_argument("--query", default=None, help="按语义检索最相近的章节")
     mem.add_argument("--k", type=int, default=3)
     mem.set_defaults(func=cmd_memory)
+
+    proj = sub.add_parser("project", help="项目管理：list / new（从简介生成新项目）")
+    proj.add_argument("action", choices=["list", "new"])
+    proj.add_argument("name", nargs="?", default=None, help="项目名称（new 时）")
+    proj.add_argument("--brief", default=None, help="世界观 / 剧情简介")
+    proj.add_argument("--file", default=None, help="从文件读取简介")
+    proj.set_defaults(func=cmd_project)
 
     i = sub.add_parser("init", help="写入示例数据文件")
     i.add_argument("--force", action="store_true")

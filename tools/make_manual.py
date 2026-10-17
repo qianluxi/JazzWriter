@@ -106,7 +106,7 @@ def build() -> Document:
     _cjk(srun.font)
     ver = doc.add_paragraph()
     ver.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    vrun = ver.add_run("适用版本 v2.15　·　Novel Jazz Engine")
+    vrun = ver.add_run("适用版本 v2.16　·　Novel Jazz Engine")
     vrun.font.size = Pt(11)
     vrun.font.color.rgb = RGBColor.from_string("999999")
     _cjk(vrun.font)
@@ -186,6 +186,16 @@ def build() -> Document:
     h2(doc, "第 6 步：导出")
     p(doc, "点「导出结构 Markdown」得到结构文件；点「导出故事板（md/html）」得到可视化故事板"
            "（动机时间线 / 人物弧线 / 伏笔面板 / 偏离检测）。")
+
+    h2(doc, "新建 / 打开项目")
+    p(doc, "GUI 顶部有「项目」下拉与两个按钮：")
+    bullets(doc, [
+        "新建项目：填写名称与“世界观/大致剧情”，程序在 projects/ 下生成一套独立乐谱"
+        "（story / characters / relationships / motifs / story_state），并自动打开。",
+        "打开：从下拉选择已存在的项目，数据目录随之切换，规划/正文/历史都写进该项目。",
+    ])
+    p(doc, "命令行等价操作：python main.py project list / "
+           "python main.py project new \"名称\" --brief \"…\"，之后用 --data projects/<目录> 继续。")
 
     # -- 4 ----------------------------------------------------------------
     h1(doc, "四、界面速览")
@@ -318,6 +328,8 @@ def build() -> Document:
         ["python main.py chars", "查看人物库、使用情况与关系网络"],
         ["python main.py memory --rebuild", "从当前结构重建向量记忆（语义检索库）"],
         ["python main.py memory --query \"...\"", "按语义检索最相近的章节"],
+        ["python main.py project list", "列出已有项目（projects/）"],
+        ["python main.py project new \"名称\" --brief \"…\"", "按世界观/剧情生成新项目"],
         ["python main.py outline \"前提\" --branches 3", "发散故事方案"],
         ["python main.py outline \"前提\" --fuse 1 2", "融合两个方案"],
         ["python main.py outline \"前提\" --build --pick 2 --chapters 12 --template mystery", "采纳并展开结构"],
