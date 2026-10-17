@@ -6,6 +6,8 @@ import argparse
 import json
 import sys
 from pathlib import Path
+
+import yaml
 from typing import List, Optional
 
 from rich.console import Console
@@ -851,6 +853,40 @@ def cmd_project(args) -> int:
         console.print("[dim]用 `--data projects/<目录>`（或 GUI「打开项目」）继续该项目。[/dim]")
         return 0
 
+    if args.action in ("show", "regen"):
+        target = args.name or ""
+        path = manager.find(target) if target else None
+        if path is None:
+            console.print(f"[red]找不到项目：{target}（用 `project list` 查看）[/red]")
+            return 2
+        if args.action == "show":
+            data = yaml.safe_load((path / "story.yaml").read_text(encoding="utf-8")) or {}
+            theme = data.get("theme", {})
+            try:
+                chars = (yaml.safe_load((path / "characters.yaml").read_text(encoding="utf-8")) or {}).get("characters", [])
+            except Exception:  # noqa: BLE001
+                chars = []
+            rels = 0
+            rp = path / "relationships.yaml"
+            if rp.exists():
+                rels = len((yaml.safe_load(rp.read_text(encoding="utf-8")) or {}).get("relationships", []))
+            brief = manager.read_brief(path)
+            console.print(Panel(
+                f"目录：{path}\n标题：{theme.get('title', path.name)}\n命题：{theme.get('question','')}\n"
+                f"人物：{len(chars)}　关系：{rels}\n简介：{brief[:200]}",
+                title="项目 · Project", border_style="green"))
+            return 0
+        # regen
+        brief = None
+        if args.file:
+            brief = Path(args.file).read_text(encoding="utf-8")
+        elif args.brief:
+            brief = args.brief
+        path = manager.regenerate(path, brief)
+        console.print(f"[green]已重建项目[/green] → {path}")
+        console.print("[dim]旧文件（含可能的 book_plan）已移入 _backup_* 目录；请重新生成结构。[/dim]")
+        return 0
+
     # new
     if args.file:
         brief = Path(args.file).read_text(encoding="utf-8")
@@ -1259,8 +1295,9 @@ def build_parser() -> argparse.ArgumentParser:
     mem.set_defaults(func=cmd_memory)
 
     proj = sub.add_parser("project", help="项目管理：list / new（从简介生成新项目）")
-    proj.add_argument("action", choices=["list", "new"])
-    proj.add_argument("name", nargs="?", default=None, help="项目名称（new 时）")
+    proj.add_argument("action", choices=["list", "new", "show", "regen"])
+    proj.add_argument("name", nargs="?", default=None,
+                      help="new: 项目名称；show/regen: 目录名或标题")
     proj.add_argument("--brief", default=None, help="世界观 / 剧情简介")
     proj.add_argument("--file", default=None, help="从文件读取简介")
     proj.set_defaults(func=cmd_project)

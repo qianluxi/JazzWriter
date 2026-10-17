@@ -106,7 +106,7 @@ def build() -> Document:
     _cjk(srun.font)
     ver = doc.add_paragraph()
     ver.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    vrun = ver.add_run("适用版本 v2.16　·　Novel Jazz Engine")
+    vrun = ver.add_run("适用版本 v2.17　·　Novel Jazz Engine")
     vrun.font.size = Pt(11)
     vrun.font.color.rgb = RGBColor.from_string("999999")
     _cjk(vrun.font)
@@ -192,10 +192,13 @@ def build() -> Document:
     bullets(doc, [
         "新建项目：填写名称与“世界观/大致剧情”，程序在 projects/ 下生成一套独立乐谱"
         "（story / characters / relationships / motifs / story_state），并自动打开。",
-        "打开：从下拉选择已存在的项目，数据目录随之切换，规划/正文/历史都写进该项目。",
+        "打开：从下拉选择已存在的项目，点“打开”；数据目录随之切换，规划/正文/历史都写进该项目"
+        "（打开后会弹确认，右侧显示“项目：…”）。",
+        "编辑/重建：修改项目简介并重建，程序按新简介重新生成整套设定；旧文件（含已保存结构）"
+        "会移入 _backup_* 目录，之后需重新“生成创意→采纳并展开”。",
     ])
-    p(doc, "命令行等价操作：python main.py project list / "
-           "python main.py project new \"名称\" --brief \"…\"，之后用 --data projects/<目录> 继续。")
+    p(doc, "命令行：python main.py project list / show <目录> / new \"名称\" --brief \"…\" / "
+           "regen <目录> --file 简介.txt；之后用 --data projects/<目录> 继续。")
 
     # -- 4 ----------------------------------------------------------------
     h1(doc, "四、界面速览")

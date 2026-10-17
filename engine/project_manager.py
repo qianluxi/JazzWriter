@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import re
+import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -251,6 +252,61 @@ class ProjectManager:
         directory = self._unique_dir(slugify(name))
         self._write(directory, name.strip(), brief or "", spec)
         return directory
+
+    def find(self, target: str) -> Optional[Path]:
+        """Resolve a project by directory name or display title."""
+        direct = Path(target)
+        if direct.is_dir():
+            return direct
+        for it in self.list_projects():
+            if it["dir"] == target or it["name"] == target:
+                return it["path"]
+        return None
+
+    def read_brief(self, project: Path) -> str:
+        project = Path(project)
+        brief_file = project / "brief.md"
+        if brief_file.exists():
+            text = brief_file.read_text(encoding="utf-8")
+            # strip the generated header lines
+            lines = [ln for ln in text.splitlines()
+                     if not ln.startswith("# ") and not ln.startswith("创建于 ")]
+            return "\n".join(lines).strip()
+        try:
+            data = yaml.safe_load((project / "story.yaml").read_text(encoding="utf-8")) or {}
+            return (data.get("theme") or {}).get("statement", "")
+        except Exception:  # noqa: BLE001
+            return ""
+
+    def regenerate(self, project: Path, brief: Optional[str] = None,
+                   name: Optional[str] = None) -> Path:
+        """Rebuild a project's score from a (possibly updated) brief.
+
+        Existing files — including any saved book_plan / vector store — are
+        **moved into a timestamped `_backup_*` folder** first, so a rebuilt world
+        never silently renders a stale structure.
+        """
+        project = Path(project)
+        try:
+            data = yaml.safe_load((project / "story.yaml").read_text(encoding="utf-8")) or {}
+            title = name or (data.get("theme") or {}).get("title") or project.name
+        except Exception:  # noqa: BLE001
+            title = name or project.name
+        brief = brief if brief is not None else self.read_brief(project)
+        spec = self.builder.build(title, brief)
+
+        backup = project / f"_backup_{_dt.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        backup.mkdir(parents=True, exist_ok=True)
+        for fname in ("story.yaml", "characters.yaml", "relationships.yaml",
+                      "motifs.yaml", "story_state.yaml", "brief.md",
+                      "book_plan.json", "book_outline.md", "story_report.md",
+                      "story_report.html", "vector_store.json",
+                      "motif_state.yaml", "jazz_state.yaml"):
+            src = project / fname
+            if src.exists():
+                shutil.move(str(src), str(backup / fname))
+        self._write(project, title, brief or "", spec)
+        return project
 
     def _unique_dir(self, slug: str) -> Path:
         self.root.mkdir(parents=True, exist_ok=True)

@@ -126,6 +126,7 @@ class App:
                                          width=18, state="readonly")
         self.project_combo.pack(side="left", padx=(4, 4))
         ttk.Button(bar, text="打开", command=self.on_open_project).pack(side="left")
+        ttk.Button(bar, text="编辑/重建", command=self.on_rebuild_project).pack(side="left", padx=(4, 0))
         ttk.Button(bar, text="新建项目", command=self.on_new_project).pack(side="left", padx=(4, 12))
         ttk.Button(bar, text="重载设定", command=self._reload_session).pack(side="left")
         self.loaded_var = tk.StringVar(value="")
@@ -338,12 +339,21 @@ class App:
         self.pov_combo.configure(values=names)
         if names and self.pov_var.get() not in names:
             self.pov_var.set(names[0])
-        self.loaded_var.set(f"人物 {len(names)} · provider={self.session.provider_name}")
+        self.loaded_var.set(
+            f"项目：{self._current_project_label()} · 人物 {len(names)} · provider={self.session.provider_name}")
         self._set_tab("状态", self._status_text())
         self._set_tab("人物", self._characters_text())
         self._populate_tree()
 
     # -- project management --------------------------------------------------
+    def _current_project_label(self) -> str:
+        if self.data_dir is None:
+            return "默认 data/"
+        for name, p in self._project_map.items():
+            if Path(p).resolve() == Path(self.data_dir).resolve():
+                return name
+        return Path(self.data_dir).name
+
     def _refresh_projects(self) -> None:
         try:
             items = ProjectManager().list_projects()
@@ -361,12 +371,75 @@ class App:
 
     def on_open_project(self) -> None:
         name = self.project_var.get()
-        if name in ("", "（默认 data/）") or name not in self._project_map:
+        if name in ("", "（默认 data/）"):
             self.data_dir = None
-        else:
+        elif name in self._project_map:
             self.data_dir = self._project_map[name]
+        else:
+            messagebox.showwarning("无法打开", f"未找到项目：{name}")
+            return
         self._reload_session()
-        self.status_var.set(f"已打开：{name}")
+        if self.session is None:
+            return
+        title = self.session.theme.title or self._current_project_label()
+        self.status_var.set(f"已打开：{title}")
+        messagebox.showinfo("已打开项目",
+                            f"《{title}》\n目录：{self.data_dir or 'data/'}\n"
+                            f"人物：{len(self.session.characters)}")
+
+    def on_rebuild_project(self) -> None:
+        if self.data_dir is None:
+            messagebox.showinfo("请选择项目",
+                                "先在顶部「项目」下拉选择要重建的项目（默认 data/ 不在此重建）。")
+            return
+        path = Path(self.data_dir)
+        manager = ProjectManager()
+        current_brief = manager.read_brief(path)
+        title = (self.session.theme.title if self.session else "") or path.name
+
+        win = tk.Toplevel(self.root)
+        win.title(f"编辑 / 重建项目 · {path.name}")
+        win.transient(self.root)
+        win.grab_set()
+        win.geometry("760x620")
+        ttk.Label(win, text="项目名称").pack(anchor="w", padx=10, pady=(10, 2))
+        name_var = tk.StringVar(value=title)
+        ttk.Entry(win, textvariable=name_var, width=44).pack(anchor="w", padx=10)
+        ttk.Label(win, text="世界观 / 大致剧情（修改后重建会据此重新生成整套设定）").pack(
+            anchor="w", padx=10, pady=(10, 2))
+        brief = tk.Text(win, height=18, wrap="word")
+        brief.pack(fill="both", expand=True, padx=10)
+        brief.insert("1.0", current_brief or "在此写下世界观与大致剧情……")
+        ttk.Label(win, foreground="#a33", wraplength=720, justify="left",
+                  text="注意：重建会用上面的简介重新生成 story / characters / relationships / motifs / "
+                       "story_state；旧文件（含已保存的结构 book_plan）会移入 _backup_* 目录，之后需要重新“生成创意→采纳并展开”。"
+                  ).pack(anchor="w", padx=10, pady=(8, 0))
+
+        def do_rebuild():
+            new_name = name_var.get().strip() or path.name
+            text = brief.get("1.0", "end").strip()
+            if not text:
+                messagebox.showwarning("缺少简介", "请填写世界观/剧情简介。", parent=win)
+                return
+            if not messagebox.askyesno("确认重建", "确定要重建该项目吗？旧文件会归档到 _backup_*。", parent=win):
+                return
+            win.destroy()
+
+            def work():
+                return ProjectManager(llm=self._project_llm()).regenerate(path, text, new_name)
+
+            self._async(work, self._on_project_rebuilt, label="正在重建项目…")
+
+        btns = ttk.Frame(win)
+        btns.pack(fill="x", pady=8)
+        ttk.Button(btns, text="重建", command=do_rebuild).pack(side="right", padx=6)
+        ttk.Button(btns, text="取消", command=win.destroy).pack(side="right")
+
+    def _on_project_rebuilt(self, path) -> None:
+        self.data_dir = Path(path)
+        self._reload_session()
+        self.status_var.set(f"项目已重建：{Path(path).name}")
+        messagebox.showinfo("已重建", f"项目已用新简介重建：\n{path}\n\n请重新「生成创意方案 → 采纳并展开全书结构」。")
 
     def _project_llm(self):
         try:

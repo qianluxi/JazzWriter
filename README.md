@@ -1,4 +1,4 @@
-# JazzWriter（小说爵士引擎）`v2.16`
+# JazzWriter（小说爵士引擎）`v2.17`
 
 > **长篇小说结构即兴引擎 / Human-AI Improvisational Writing System。**
 > 主要产物不是小说正文，而是**故事方案、全书梗概、分卷结构、逐章摘要卡片，以及人物与关系网络**。
@@ -111,11 +111,16 @@ python main.py book --from-plan --pov 林 --no-save
   `story.yaml / characters.yaml / relationships.yaml / motifs.yaml / story_state.yaml / brief.md`
   （有模型时由模型扩展人物与关系；离线给可编辑的起步集）。
 - **继续主题**：顶部「项目」下拉选择，点「**打开**」；数据目录随之切换，后续规划/正文/历史都写在该项目下。
+  （打开后会弹出确认，标题栏右侧显示「项目：…」，避免"看起来没反应"。）
+- **修改世界观 / 重建**：选中项目后点「**编辑/重建**」——修改简介并重建，程序会重新生成整套设定；
+  **旧文件（含已保存的结构 book_plan）会先移入 `_backup_*` 目录**，避免用旧结构渲染新世界。
 - **CLI**：
   ```powershell
   python main.py project list
+  python main.py project show border2020                 # 查看项目主题/人物/简介
   python main.py project new "界河纪事" --brief "2020年代中俄边境……"
-  python main.py --data projects/界河纪事 status      # 继续该项目
+  python main.py project regen "界河纪事" --file new_brief.txt   # 修改简介并重建
+  python main.py --data projects/界河纪事 status          # 继续该项目
   ```
 
 ---
@@ -124,7 +129,8 @@ python main.py book --from-plan --pov 林 --no-save
 
 | 命令 | 作用 |
 | --- | --- |
-| `project list` / `project new "名称" --brief "…"` | 列出项目 / 从简介生成新项目 |
+| `project list` / `show <dir>` / `new "名称" --brief "…"` | 列出 / 查看 / 从简介生成项目 |
+| `project regen <dir> [--file 简介]` | 用新简介重建项目（旧文件归档到 `_backup_*`） |
 | `status` | 查看主题 / 人物 / 和声 / 动机 / 故事状态 |
 | `chars` | 人物库、使用情况、关系网络与关系变化 |
 | `outline "前提" --branches 3` | 发散故事方案（五维对照） |
@@ -299,7 +305,7 @@ feedback/       theme_check / character_check / novelty_check / conductor
 jam_session/    director / soloist / observer / editor / orchestrator
 llm/            base / mock / openai_provider / opencode_provider
 session.py  store.py  cli.py  gui.py  main.py
-tests/          回归测试（119 项）
+tests/          回归测试（122 项）
 projects/       独立小说的乐谱与稿子（示例见 projects/border2020/；产出随各项目目录保存）
 ```
 
@@ -319,7 +325,7 @@ projects/       独立小说的乐谱与稿子（示例见 projects/border2020/�
 ## 测试
 
 ```powershell
-python -m unittest discover -s tests     # 119 项：确定性 / 记录 / 连续性 / 约束注入 / 结构校验 / 人物关系 / 反馈边界 / 向量记忆 / Jam / 项目隔离 / 事实冲突审阅
+python -m unittest discover -s tests     # 122 项：确定性 / 记录 / 连续性 / 约束注入 / 结构校验 / 人物关系 / 反馈边界 / 向量记忆 / Jam / 项目隔离 / 事实冲突审阅
 ```
 
 ---
@@ -328,6 +334,7 @@ python -m unittest discover -s tests     # 119 项：确定性 / 记录 / 连续
 
 | 版本 | 内容 |
 | --- | --- |
+| **v2.17** | 项目「编辑/重建」（改简介重生成整套设定，旧文件归档 `_backup_*`）· 打开项目有明确反馈/当前项目标签 · CLI `project show/regen` |
 | **v2.16** | 项目管理：输入世界观/剧情简介即在 `projects/` 下生成新项目（GUI 新建/打开项目 + CLI `project`） |
 | **v2.15** | 重即兴固定该章 POV 与参与人物（消除元数据不一致）· 项目 A/B 数据完全隔离的验收测试 · 端到端工作流测试 |
 | **v2.14** | 新增「与已确定事实的语义冲突」显式 LLM 审阅项（带章号与引用事实；离线明确标注"需模型、不判定"） |
