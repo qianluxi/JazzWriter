@@ -248,7 +248,10 @@ python main.py book --from-plan --pov 林 --no-save
 - 自动同步：渲染后自动 `git add/commit/push docs/preview`；用 `NJE_PREVIEW_AUTOPUSH=0` 关闭，或 `book --from-plan --no-publish`。
 - 单独重发：`python main.py preview [--no-publish]`。
 - 在线地址：`https://<user>.github.io/<repo>/preview/<项目>.html`
-  （在仓库 **Settings → Pages → Source 选 `main` 分支 `/docs`** 后生效；本仓库即 `https://qianluxi.github.io/JazzWriter/preview/`）。
+  （本仓库即 `https://qianluxi.github.io/JazzWriter/preview/`）。
+- 开启方法（**仓库**设置，别点右上角头像里的账号设置——那是 "Verified domains"）：
+  打开 `https://github.com/qianluxi/JazzWriter/settings/pages` → **Build and deployment** →
+  Source 选 **Deploy from a branch** → Branch `main`、Folder `/docs` → Save。
 
 ---
 

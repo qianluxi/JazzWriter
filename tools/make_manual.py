@@ -294,8 +294,11 @@ def build() -> Document:
     h2(doc, "按结构渲染正文")
     p(doc, "用已生成的章节摘要作为场景，顺序写成正文（可选）。按钮：「按结构渲染正文」。")
     p(doc, "在线正文预览：每次渲染都会生成一个自包含阅读页，并默认同步到远端——"
-           "docs/preview/<项目>.html 与索引 index.html。启用 GitHub Pages（仓库 Settings → Pages → "
-           "Source 选 main 分支 /docs）后，即可在 https://<用户名>.github.io/<仓库>/preview/ 阅读。"
+           "docs/preview/<项目>.html 与索引 index.html。启用 GitHub Pages 后即可在 "
+           "https://<用户名>.github.io/<仓库>/preview/ 阅读。"
+           "开启方法：打开仓库的 Settings → Pages（地址形如 "
+           "https://github.com/<用户名>/<仓库>/settings/pages，注意不是右上角头像里的账号设置），"
+           "Build and deployment → Source 选 Deploy from a branch → Branch main、Folder /docs → Save。"
            "不想自动推送可设环境变量 NJE_PREVIEW_AUTOPUSH=0，或命令加 --no-publish。")
     h2(doc, "试写与多版本")
     bullets(doc, [
