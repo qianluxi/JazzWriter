@@ -766,7 +766,7 @@ class Session:
         try:
             if run(["rev-parse", "--is-inside-work-tree"]).returncode != 0:
                 return {"pushed": False, "message": "not a git repo"}
-            run(["add", "preview"])
+            run(["add", "docs/preview"])
             commit = run(["commit", "-m", f"preview: update manuscript ({filename})"])
             combined = (commit.stdout or "") + (commit.stderr or "")
             if commit.returncode != 0 and "nothing to commit" not in combined:
