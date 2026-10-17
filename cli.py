@@ -882,6 +882,26 @@ def cmd_project(args) -> int:
         console.print("[dim]用 `--data projects/<目录>`（或 GUI「打开项目」）继续该项目。[/dim]")
         return 0
 
+    if args.action == "delete":
+        path = manager.find(args.name or "") if args.name else None
+        if path is None:
+            console.print(f"[red]找不到项目：{args.name}（用 `project list` 查看）[/red]")
+            return 2
+        if not getattr(args, "yes", False):
+            if not sys.stdin.isatty():
+                console.print("[red]删除需要 --yes 确认。[/red]")
+                return 2
+            if input(f"确认删除项目《{path.name}》及其在线预览？(y/N) ").strip().lower() not in ("y", "yes"):
+                console.print("已取消。")
+                return 0
+        info = manager.delete(path, push=not getattr(args, "no_publish", False))
+        console.print(f"[green]已删除项目[/green] → {info['path']}")
+        if info["preview_removed"]:
+            console.print("在线预览已移除" + ("并已推送。" if info["pushed"] else f"（未推送：{info['message']}）"))
+        else:
+            console.print("[dim]（在线预览中没有该项目的文件）[/dim]")
+        return 0
+
     if args.action in ("show", "regen"):
         target = args.name or ""
         path = manager.find(target) if target else None
@@ -1331,11 +1351,14 @@ def build_parser() -> argparse.ArgumentParser:
     mem.set_defaults(func=cmd_memory)
 
     proj = sub.add_parser("project", help="项目管理：list / new（从简介生成新项目）")
-    proj.add_argument("action", choices=["list", "new", "show", "regen"])
+    proj.add_argument("action", choices=["list", "new", "show", "regen", "delete"])
     proj.add_argument("name", nargs="?", default=None,
-                      help="new: 项目名称；show/regen: 目录名或标题")
+                      help="new: 项目名称；show/regen/delete: 目录名或标题")
     proj.add_argument("--brief", default=None, help="世界观 / 剧情简介")
     proj.add_argument("--file", default=None, help="从文件读取简介")
+    proj.add_argument("--yes", action="store_true", help="delete: 跳过确认")
+    proj.add_argument("--no-publish", dest="no_publish", action="store_true",
+                      help="delete: 不推送远端预览删除")
     proj.set_defaults(func=cmd_project)
 
     i = sub.add_parser("init", help="写入示例数据文件")

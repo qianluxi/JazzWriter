@@ -10,7 +10,7 @@ from __future__ import annotations
 import html
 import re
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 _STYLE = """
 :root{--ink:#1c1b19;--sub:#777;--paper:#faf8f3;--rule:#e5e0d5}
@@ -91,3 +91,27 @@ ul{{list-style:none;padding:0}} li{{margin:10px 0;font-size:16px}}
 def slugify(text: str) -> str:
     s = re.sub(r"[^\w\u4e00-\u9fff-]+", "-", (text or "").strip())
     return (s.strip("-")[:40]) or "default"
+
+
+def git_publish(repo_root, message: str, *, add_path: str = "docs/preview") -> Dict[str, Any]:
+    """git add/commit/push one preview path. Never raises; returns status."""
+    import subprocess
+
+    def run(args):
+        return subprocess.run(["git", "-C", str(repo_root)] + args,
+                              capture_output=True, text=True, timeout=60)
+
+    try:
+        if run(["rev-parse", "--is-inside-work-tree"]).returncode != 0:
+            return {"pushed": False, "message": "not a git repo"}
+        run(["add", add_path])
+        commit = run(["commit", "-m", message])
+        combined = (commit.stdout or "") + (commit.stderr or "")
+        if commit.returncode != 0 and "nothing to commit" not in combined:
+            return {"pushed": False, "message": combined.strip()[:200]}
+        push = run(["push", "origin", "HEAD"])
+        if push.returncode != 0:
+            return {"pushed": False, "message": ((push.stderr or push.stdout) or "").strip()[:200]}
+        return {"pushed": True, "message": "pushed"}
+    except Exception as exc:  # noqa: BLE001
+        return {"pushed": False, "message": str(exc)}

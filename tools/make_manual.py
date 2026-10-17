@@ -106,7 +106,7 @@ def build() -> Document:
     _cjk(srun.font)
     ver = doc.add_paragraph()
     ver.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    vrun = ver.add_run("适用版本 v2.18　·　Novel Jazz Engine")
+    vrun = ver.add_run("适用版本 v2.19　·　Novel Jazz Engine")
     vrun.font.size = Pt(11)
     vrun.font.color.rgb = RGBColor.from_string("999999")
     _cjk(vrun.font)
@@ -196,6 +196,7 @@ def build() -> Document:
         "（打开后会弹确认，右侧显示“项目：…”）。",
         "编辑/重建：修改项目简介并重建，程序按新简介重新生成整套设定；旧文件（含已保存结构）"
         "会移入 _backup_* 目录，之后需重新“生成创意→采纳并展开”。",
+        "删除项目：删除本地目录，并同步移除在线预览（docs/preview/<项目>.html）并推送，索引随之更新。",
     ])
     p(doc, "命令行：python main.py project list / show <目录> / new \"名称\" --brief \"…\" / "
            "regen <目录> --file 简介.txt；之后用 --data projects/<目录> 继续。")
@@ -341,6 +342,7 @@ def build() -> Document:
         ["python main.py memory --query \"...\"", "按语义检索最相近的章节"],
         ["python main.py project list", "列出已有项目（projects/）"],
         ["python main.py project new \"名称\" --brief \"…\"", "按世界观/剧情生成新项目"],
+        ["python main.py project delete \"名称\" --yes", "删除项目（本地 + 同步移除在线预览）"],
         ["python main.py outline \"前提\" --branches 3", "发散故事方案"],
         ["python main.py outline \"前提\" --fuse 1 2", "融合两个方案"],
         ["python main.py outline \"前提\" --build --pick 2 --chapters 12 --template mystery", "采纳并展开结构"],

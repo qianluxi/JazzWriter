@@ -1,4 +1,4 @@
-# JazzWriter（小说爵士引擎）`v2.18`
+# JazzWriter（小说爵士引擎）`v2.19`
 
 > **长篇小说结构即兴引擎 / Human-AI Improvisational Writing System。**
 > 主要产物不是小说正文，而是**故事方案、全书梗概、分卷结构、逐章摘要卡片，以及人物与关系网络**。
@@ -114,12 +114,14 @@ python main.py book --from-plan --pov 林 --no-save
   （打开后会弹出确认，标题栏右侧显示「项目：…」，避免"看起来没反应"。）
 - **修改世界观 / 重建**：选中项目后点「**编辑/重建**」——修改简介并重建，程序会重新生成整套设定；
   **旧文件（含已保存的结构 book_plan）会先移入 `_backup_*` 目录**，避免用旧结构渲染新世界。
+- **删除项目**：选中项目后点「**删除项目**」——删除本地目录，并**同步移除在线预览**（`docs/preview/<项目>.html`）并推送，`preview/` 索引随之更新。
 - **CLI**：
   ```powershell
   python main.py project list
   python main.py project show border2020                 # 查看项目主题/人物/简介
   python main.py project new "界河纪事" --brief "2020年代中俄边境……"
   python main.py project regen "界河纪事" --file new_brief.txt   # 修改简介并重建
+  python main.py project delete "界河纪事" --yes           # 删除项目并同步移除在线预览
   python main.py --data projects/界河纪事 status          # 继续该项目
   ```
 
@@ -131,6 +133,7 @@ python main.py book --from-plan --pov 林 --no-save
 | --- | --- |
 | `project list` / `show <dir>` / `new "名称" --brief "…"` | 列出 / 查看 / 从简介生成项目 |
 | `project regen <dir> [--file 简介]` | 用新简介重建项目（旧文件归档到 `_backup_*`） |
+| `project delete <dir> --yes` | 删除项目（本地 + 同步移除在线预览） |
 | `status` | 查看主题 / 人物 / 和声 / 动机 / 故事状态 |
 | `chars` | 人物库、使用情况、关系网络与关系变化 |
 | `outline "前提" --branches 3` | 发散故事方案（五维对照） |
@@ -320,7 +323,7 @@ feedback/       theme_check / character_check / novelty_check / conductor
 jam_session/    director / soloist / observer / editor / orchestrator
 llm/            base / mock / openai_provider / opencode_provider
 session.py  store.py  cli.py  gui.py  main.py
-tests/          回归测试（125 项）
+tests/          回归测试（127 项）
 projects/       独立小说的乐谱与稿子（示例见 projects/border2020/；产出随各项目目录保存）
 ```
 
@@ -340,7 +343,7 @@ projects/       独立小说的乐谱与稿子（示例见 projects/border2020/�
 ## 测试
 
 ```powershell
-python -m unittest discover -s tests     # 125 项：确定性 / 记录 / 连续性 / 约束注入 / 结构校验 / 人物关系 / 反馈边界 / 向量记忆 / Jam / 项目隔离 / 事实冲突审阅
+python -m unittest discover -s tests     # 127 项：确定性 / 记录 / 连续性 / 约束注入 / 结构校验 / 人物关系 / 反馈边界 / 向量记忆 / Jam / 项目隔离 / 事实冲突审阅
 ```
 
 ---
@@ -349,6 +352,7 @@ python -m unittest discover -s tests     # 125 项：确定性 / 记录 / 连续
 
 | 版本 | 内容 |
 | --- | --- |
+| **v2.19** | 删除项目：本地删除 + 同步移除在线预览并推送（GUI「删除项目」/ CLI `project delete`） |
 | **v2.18** | 在线正文预览：渲染正文即生成 `docs/preview/` 并默认推送远端（GitHub Pages 可访问） |
 | **v2.17** | 项目「编辑/重建」（改简介重生成整套设定，旧文件归档 `_backup_*`）· 打开项目有明确反馈/当前项目标签 · CLI `project show/regen` |
 | **v2.16** | 项目管理：输入世界观/剧情简介即在 `projects/` 下生成新项目（GUI 新建/打开项目 + CLI `project`） |

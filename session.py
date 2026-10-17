@@ -25,8 +25,8 @@ from engine.composer import Composer, Take
 from engine.evaluator import Evaluation, Evaluator
 from engine.memory import DeviationReport, MemoryIndex, analyze_book
 from engine.narrative_reviewer import NarrativeReviewer
-from engine.preview import (build_manuscript_html, rebuild_index, slugify,
-                            write_preview)
+from engine.preview import (build_manuscript_html, git_publish, rebuild_index,
+                            slugify, write_preview)
 from engine.outline_expander import OutlineExpander, TEMPLATE_LABELS
 from engine.reimproviser import ChapterCandidate, ChapterReimproviser
 from engine.plot_validator import PlotValidator
@@ -757,26 +757,7 @@ class Session:
 
     @staticmethod
     def _git_publish(filename: str) -> Dict[str, Any]:
-        import subprocess
-
-        def run(args):
-            return subprocess.run(["git", "-C", str(ROOT)] + args,
-                                  capture_output=True, text=True, timeout=60)
-
-        try:
-            if run(["rev-parse", "--is-inside-work-tree"]).returncode != 0:
-                return {"pushed": False, "message": "not a git repo"}
-            run(["add", "docs/preview"])
-            commit = run(["commit", "-m", f"preview: update manuscript ({filename})"])
-            combined = (commit.stdout or "") + (commit.stderr or "")
-            if commit.returncode != 0 and "nothing to commit" not in combined:
-                return {"pushed": False, "message": combined.strip()[:200]}
-            push = run(["push", "origin", "HEAD"])
-            if push.returncode != 0:
-                return {"pushed": False, "message": ((push.stderr or push.stdout) or "").strip()[:200]}
-            return {"pushed": True, "message": "pushed"}
-        except Exception as exc:  # noqa: BLE001
-            return {"pushed": False, "message": str(exc)}
+        return git_publish(ROOT, f"preview: update manuscript ({filename})")
 
     # -- memory & deviation (V1.0) -----------------------------------------
     def memory_index(self) -> MemoryIndex:

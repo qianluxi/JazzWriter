@@ -12,6 +12,7 @@ never blocks.
 from __future__ import annotations
 
 import datetime as _dt
+import os
 import re
 import shutil
 from pathlib import Path
@@ -20,6 +21,7 @@ from typing import Any, Dict, List, Optional
 import yaml
 
 from engine.planning_llm import generate_json
+from engine.preview import git_publish, rebuild_index, slugify
 
 ROOT = Path(__file__).resolve().parent.parent
 PROJECTS_ROOT = ROOT / "projects"
@@ -225,9 +227,12 @@ class ProjectBuilder:
 
 
 class ProjectManager:
-    def __init__(self, root: Optional[Path] = None, llm=None) -> None:
+    def __init__(self, root: Optional[Path] = None, llm=None,
+                 preview_dir: Optional[Path] = None) -> None:
         self.root = Path(root) if root else PROJECTS_ROOT
+        self.preview_dir = Path(preview_dir) if preview_dir else (ROOT / "docs" / "preview")
         self.builder = ProjectBuilder(llm)
+        self.last_delete: Optional[Dict[str, Any]] = None
 
     def list_projects(self) -> List[Dict[str, Any]]:
         if not self.root.exists():
@@ -307,6 +312,35 @@ class ProjectManager:
                 shutil.move(str(src), str(backup / fname))
         self._write(project, title, brief or "", spec)
         return project
+
+    def delete(self, project: Path, *, push: Optional[bool] = None) -> Dict[str, Any]:
+        """Delete a project locally *and* remove its online preview, then sync.
+
+        Returns ``{path, name, preview_removed, pushed, message}``.
+        """
+        project = Path(project)
+        if not project.exists():
+            raise FileNotFoundError(f"项目不存在：{project}")
+        slug = slugify(project.name)
+        preview_file = self.preview_dir / f"{slug}.html"
+        removed_preview = False
+        if preview_file.exists():
+            preview_file.unlink()
+            removed_preview = True
+        rebuild_index(self.preview_dir)
+        shutil.rmtree(project)
+
+        if push is None:
+            default_dir = (ROOT / "docs" / "preview").resolve()
+            push = (os.getenv("NJE_PREVIEW_AUTOPUSH", "1") != "0"
+                    and Path(self.preview_dir).resolve() == default_dir)
+        info: Dict[str, Any] = {"path": str(project), "name": slug,
+                                "preview_removed": removed_preview,
+                                "pushed": False, "message": ""}
+        if push and removed_preview:
+            info.update(git_publish(ROOT, f"preview: remove {slug}"))
+        self.last_delete = info
+        return info
 
     def _unique_dir(self, slug: str) -> Path:
         self.root.mkdir(parents=True, exist_ok=True)

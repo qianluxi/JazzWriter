@@ -127,7 +127,8 @@ class App:
         self.project_combo.pack(side="left", padx=(4, 4))
         ttk.Button(bar, text="打开", command=self.on_open_project).pack(side="left")
         ttk.Button(bar, text="编辑/重建", command=self.on_rebuild_project).pack(side="left", padx=(4, 0))
-        ttk.Button(bar, text="新建项目", command=self.on_new_project).pack(side="left", padx=(4, 12))
+        ttk.Button(bar, text="新建项目", command=self.on_new_project).pack(side="left", padx=(4, 0))
+        ttk.Button(bar, text="删除项目", command=self.on_delete_project).pack(side="left", padx=(4, 12))
         ttk.Button(bar, text="重载设定", command=self._reload_session).pack(side="left")
         self.loaded_var = tk.StringVar(value="")
         ttk.Label(bar, textvariable=self.loaded_var, foreground="#0a7").pack(side="right")
@@ -434,6 +435,34 @@ class App:
         btns.pack(fill="x", pady=8)
         ttk.Button(btns, text="重建", command=do_rebuild).pack(side="right", padx=6)
         ttk.Button(btns, text="取消", command=win.destroy).pack(side="right")
+
+    def on_delete_project(self) -> None:
+        if self.data_dir is None:
+            messagebox.showinfo("请选择项目", "先在顶部「项目」下拉选择要删除的项目（默认 data/ 不可删除）。")
+            return
+        path = Path(self.data_dir)
+        title = (self.session.theme.title if self.session else "") or path.name
+        if not messagebox.askyesno(
+                "确认删除",
+                f"确定删除项目《{title}》吗？\n\n将删除本地目录：\n{path}\n"
+                "并同步删除在线预览（如已发布）；此操作不可撤销。"):
+            return
+
+        def work():
+            return ProjectManager(llm=self._project_llm()).delete(path)
+
+        self._async(work, self._on_project_deleted, label="正在删除项目…")
+
+    def _on_project_deleted(self, info) -> None:
+        if self.data_dir and Path(self.data_dir) == Path(info["path"]):
+            self.data_dir = None
+        self._reload_session()
+        self.status_var.set(f"已删除项目：{Path(info['path']).name}")
+        if info.get("preview_removed"):
+            note = "在线预览已删除" + ("并已推送。" if info.get("pushed") else f"（未推送：{info.get('message')}）")
+        else:
+            note = "在线预览中未找到该项目文件。"
+        messagebox.showinfo("已删除", f"项目已删除：{info['path']}\n{note}")
 
     def _on_project_rebuilt(self, path) -> None:
         self.data_dir = Path(path)
