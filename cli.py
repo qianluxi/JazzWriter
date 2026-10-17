@@ -338,7 +338,7 @@ def _build_session(args) -> Session:
 def _save(take: Take, evaluation: Evaluation, session: Session, index: int, no_save: bool):
     if no_save:
         return
-    md, js = save_take(take, evaluation, index=index)
+    md, js = save_take(take, evaluation, index=index, outdir=session.chapters_dir)
     session.record_motifs(take)
     session.persist_motifs()
     console.print(f"[green]已保存[/green] {md.name} / {js.name}")
@@ -919,7 +919,8 @@ def cmd_jazz(args) -> int:
 
 
 def cmd_history(args) -> int:
-    records = load_runs()
+    session = _build_session(args)
+    records = load_runs(outdir=session.runs_dir)
     if args.run_id:
         records = [r for r in records if r.get("run_id") == args.run_id]
     if args.chapter is not None:
@@ -979,7 +980,7 @@ def cmd_history(args) -> int:
 
 def cmd_advice(args) -> int:
     session = _build_session(args)
-    history = load_advice()
+    history = load_advice(session.advice_path)
     pending = [a for a in history if a.get("after") and not a.get("applied")]
     if not pending:
         console.print("[yellow]暂无待审核的参数建议。[/yellow]")

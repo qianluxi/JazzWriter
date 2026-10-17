@@ -697,7 +697,7 @@ class App:
             advice = self.session.advise(take, eva, pov=snap["pov"])
             skeletons = self.session.plan(take, eva, count=3)
             if snap["save"]:
-                save_take(take, eva, index=1)
+                save_take(take, eva, index=1, outdir=self.session.chapters_dir)
                 self.session.record_motifs(take)
                 self.session.persist_motifs()
             return take, eva, advice, skeletons
@@ -737,7 +737,7 @@ class App:
             cues.append(self._cue_text(take))
             evals.append(f"【Take {i}】\n{self._eval_text(eva)}")
             if self.save_var.get():
-                save_take(take, eva, index=i)
+                save_take(take, eva, index=i, outdir=self.session.chapters_dir)
                 self.session.record_motifs(take)
         if self.save_var.get():
             self.session.persist_motifs()
@@ -1062,9 +1062,8 @@ class App:
         lines += ["", "【故事状态】", s.story_state.summary()]
         return "\n".join(lines)
 
-    @staticmethod
-    def _history_text() -> str:
-        records = load_runs()
+    def _history_text(self) -> str:
+        records = load_runs(outdir=self.session.runs_dir if self.session else None)
         if not records:
             return "(暂无运行记录)"
         lines = ["章节  时间      种子  模式        风格      总分  评级"]

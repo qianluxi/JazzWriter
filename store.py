@@ -64,7 +64,13 @@ def load_characters(path: Optional[Path] = None) -> Dict[str, Character]:
     result: Dict[str, Character] = {}
     for item in data.get("characters", []):
         character = Character.from_dict(item)
-        result[character.effective_id] = character
+        key = character.effective_id
+        if key in result:  # duplicate stable id -> keep both under a unique key
+            i = 2
+            while f"{key}#{i}" in result:
+                i += 1
+            key = f"{key}#{i}"
+        result[key] = character
     return result
 
 

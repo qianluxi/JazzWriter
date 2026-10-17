@@ -26,3 +26,7 @@ story_report.html
 motif_state.yaml
 jazz_state.yaml
 advice_history.jsonl
+data/runs/*
+data/chapters/*
+projects/**/runs/*
+projects/**/chapters/*

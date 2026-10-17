@@ -89,10 +89,16 @@ class Session:
         self.relationships: RelationshipMap = relationships or RelationshipMap()
         # project-scoped output paths (None -> store defaults)
         self.data_dir: Optional[Path] = Path(data_dir) if data_dir else None
-        self.book_plan_path: Optional[Path] = (self.data_dir / "book_plan.json") if self.data_dir else None
-        self.vector_store_path: Optional[Path] = (self.data_dir / "vector_store.json") if self.data_dir else None
-        self.outline_path: Optional[Path] = (self.data_dir / "book_outline.md") if self.data_dir else None
-        self.report_dir: Optional[Path] = self.data_dir
+        base = self.data_dir
+        self.book_plan_path: Optional[Path] = (base / "book_plan.json") if base else None
+        self.vector_store_path: Optional[Path] = (base / "vector_store.json") if base else None
+        self.outline_path: Optional[Path] = (base / "book_outline.md") if base else None
+        self.report_dir: Optional[Path] = base
+        self.runs_dir: Optional[Path] = (base / "runs") if base else None
+        self.chapters_dir: Optional[Path] = (base / "chapters") if base else None
+        self.advice_path: Optional[Path] = (base / "advice_history.jsonl") if base else None
+        self.story_state_path: Optional[Path] = (base / "story_state.yaml") if base else None
+        self.jazz_state_path: Optional[Path] = (base / "jazz_state.yaml") if base else None
 
     # -- construction -------------------------------------------------------
     @classmethod
@@ -338,9 +344,10 @@ class Session:
         if target_chapters:
             target = max(1, int(target_chapters))
             if len(scenes) < target:
-                scenes = [scenes[i % len(scenes)] for i in range(target)]
-            else:
-                scenes = scenes[:target]
+                raise ValueError(
+                    f"只提供了 {len(scenes)} 个场景，却请求 {target} 章；不再循环复用同一场景。"
+                    "请补充场景，或先用 outline 生成结构再用 book --from-plan 渲染。")
+            scenes = scenes[:target]
         total = len(scenes)
         results: List[Tuple[int, Take, Evaluation]] = []
         prev_summary = ""
@@ -363,7 +370,7 @@ class Session:
                 record=True,
             )
             if save:
-                save_take(take, eva, index=i)
+                save_take(take, eva, index=i, outdir=self.chapters_dir)
                 self.record_motifs(take)
             prev_summary = self._summary_of(take.text)
             prev_texts = (prev_texts + [take.text])[-5:]
@@ -375,7 +382,7 @@ class Session:
             self.story_state.chapter = total
             for i, take, _eva in results:
                 self.story_state.record_event(i, take.scene[:60])
-            save_story_state(self.story_state)
+            save_story_state(self.story_state, self.story_state_path)
         return results
 
     @staticmethod
@@ -639,7 +646,7 @@ class Session:
                 seed=(seed + ch.number - 1) if seed is not None else None,
                 overrides=overrides, previous_texts=prev_texts, record=True)
             if save:
-                save_take(take, eva, index=ch.number)
+                save_take(take, eva, index=ch.number, outdir=self.chapters_dir)
                 self.record_motifs(take)
             prev = self._summary_of(take.text)
             prev_texts = (prev_texts + [take.text])[-5:]
@@ -682,7 +689,7 @@ class Session:
             chapter=chapter, total_chapters=total_chapters, jazz_mode=jazz_mode,
             seed=seed, overrides=overrides, record=True)
         if save:
-            save_take(take, eva, index=chapter)
+            save_take(take, eva, index=chapter, outdir=self.chapters_dir)
             self.record_motifs(take)
             self.persist_motifs()
         return take, eva
@@ -745,14 +752,14 @@ class Session:
             "provider": take.provider,
             "created_at": created,
         }
-        save_run(record)
+        save_run(record, outdir=self.runs_dir)
         append_advice({
             "run_id": run_id, "chapter": take.chapter, "mode": take.mode,
             "created_at": created, "notes": advice["notes"],
             "deltas": advice["deltas"],
             "before": cue.params.to_dict(),
             "after": advice["suggested"], "applied": False,
-        })
+        }, self.advice_path)
 
     @staticmethod
     def _run_id(chapter: int, seed_int: int, created: str, style: str) -> str:
@@ -761,7 +768,7 @@ class Session:
         return f"ch{chapter:03d}_{stamp}_{seed_int:08x}_{tag}"
 
     def recent_texts(self, limit: int = 5) -> List[str]:
-        records = load_runs()
+        records = load_runs(outdir=self.runs_dir)
         texts = [r.get("take", {}).get("text", "") for r in records]
         return [t for t in texts if t][-limit:]
 
@@ -776,12 +783,12 @@ class Session:
     def apply_advice(self, advice: Advice, *, run_id: str = "", note: str = "") -> Path:
         """Persist the suggested params as the runtime jazz_state.yaml."""
         self.jazz = advice.suggested
-        path = save_jazz_state(advice.suggested.to_dict())
+        path = save_jazz_state(advice.suggested.to_dict(), self.jazz_state_path)
         append_advice({
             "run_id": run_id, "applied": True, "created_at":
                 _dt.datetime.now().isoformat(timespec="seconds"),
             "after": advice.suggested.to_dict(), "note": note,
-        })
+        }, self.advice_path)
         return path
 
     # -- next-scene planning -----------------------------------------------

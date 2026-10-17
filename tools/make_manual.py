@@ -106,7 +106,7 @@ def build() -> Document:
     _cjk(srun.font)
     ver = doc.add_paragraph()
     ver.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    vrun = ver.add_run("适用版本 v2.12　·　Novel Jazz Engine")
+    vrun = ver.add_run("适用版本 v2.13　·　Novel Jazz Engine")
     vrun.font.size = Pt(11)
     vrun.font.color.rgb = RGBColor.from_string("999999")
     _cjk(vrun.font)
@@ -375,8 +375,8 @@ def build() -> Document:
         ["<数据目录>/vector_store.json", "向量记忆（语义检索库）"],
         ["data/motif_state.yaml / jazz_state.yaml", "运行时状态（本地，不入库）"],
     ])
-    p(doc, "提示：用 --data <目录> 切换独立小说项目时，全书规划、结构导出、向量库与故事板都保存在该项目目录下，"
-           "不同项目互不干扰。")
+    p(doc, "提示：用 --data <目录> 切换独立小说项目时，全书规划、结构导出、向量库、故事板、运行记录、"
+           "章节正文与参数状态都保存在该项目目录下，不同项目互不干扰。")
 
     # -- 12 ---------------------------------------------------------------
     h1(doc, "十二、术语表")

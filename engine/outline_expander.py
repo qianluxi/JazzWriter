@@ -69,15 +69,34 @@ class OutlineExpander:
         self._secret_reveals = story_state.forbidden_reveals() if story_state else []
         self._curve = list(harmony.emotion_curve) if harmony else []
 
-    def _sanitize(self, text: str) -> str:
+    def _reveals_for(self, pov_id: str) -> List[str]:
+        reveals = list(self._secret_reveals)
+        if self.story_state is not None:
+            try:
+                reveals += self.story_state.forbidden_reveals(pov_id)
+            except Exception:  # noqa: BLE001
+                pass
+        return [r for r in dict.fromkeys(reveals) if r]
+
+    def _sanitize(self, text: str, reveals=()) -> str:
         out = text or ""
         for bad in self._forbidden:
             if bad in out:
                 out = out.replace(bad, "（略）")
-        for secret in self._secret_reveals:
+        for secret in list(reveals) + self._secret_reveals:
             if secret and secret in out:
                 out = "（按设定，此处不揭露）"
         return out
+
+    def _sanitize_chapter(self, ch: ChapterPlan, pov_id: str) -> None:
+        """Close the bypass: apply the same filtering to *every* text field,
+        including title / hooks / threads (which were previously unfiltered)."""
+        reveals = self._reveals_for(pov_id)
+        for field in ("title", "premise", "key_action", "conflict", "outcome",
+                      "stakes", "info_change", "character_change", "hook_from",
+                      "hook_to", "summary", "notes"):
+            setattr(ch, field, self._sanitize(getattr(ch, field), reveals))
+        ch.threads = [self._sanitize(t, reveals) for t in ch.threads]
 
     def expand(
         self,
@@ -146,7 +165,7 @@ class OutlineExpander:
                          if info_line else [])
             rel_changes = self._relationship_changes(fn, involved)
 
-            chapters.append(ChapterPlan(
+            ch = ChapterPlan(
                 number=i + 1,
                 title=f"{fn}·{turn[:12]}" if turn else fn,
                 function=fn,
@@ -168,8 +187,10 @@ class OutlineExpander:
                 hook_from=prev_hook,
                 hook_to=hook_to,
                 summary=f"{pov}面临「{turn[:14]}」：{conflict}；{outcome}",
-            ))
-            prev_hook = hook_to
+            )
+            self._sanitize_chapter(ch, pov_id)
+            chapters.append(ch)
+            prev_hook = ch.hook_to
 
         book.volumes = self._group_volumes(book, chapters, template)
         return book

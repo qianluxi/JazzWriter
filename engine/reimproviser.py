@@ -57,33 +57,43 @@ class ChapterReimproviser:
                  story_state: Optional[StoryState] = None,
                  motifs=None, llm=None, relationships=None) -> None:
         self.theme = theme
-        self.characters = {c.name: c for c in characters}
-        self.characters_by_id = {c.effective_id: c for c in characters}
+        self.character_list = list(characters)
+        self.characters = {c.effective_id: c for c in characters}  # id-keyed (no name overwrite)
         self.harmony = harmony
         self.story_state = story_state
         self.motifs = motifs
         self.llm = llm
         self.relationships = relationships or RelationshipMap()
 
-    def _pov_char(self, base: ChapterPlan):
-        return (self.characters_by_id.get(base.pov_character_id)
-                or self.characters.get(base.pov))
+    def _resolve(self, name_or_id: Optional[str]):
+        if not name_or_id:
+            return None
+        if name_or_id in self.characters:
+            return self.characters[name_or_id]
+        return next((c for c in self.character_list
+                     if c.name == name_or_id or c.effective_id == name_or_id), None)
 
     def _refresh_metadata(self, ch: ChapterPlan, base: ChapterPlan) -> None:
         """Rebuild structured character metadata so it matches the new content
         (a re-improvised chapter must not keep the old decisions/knowledge)."""
-        pov = self._pov_char(base)
-        pov_id = base.pov_character_id or (pov.effective_id if pov else base.pov)
+        pov = self._resolve(ch.pov) or self._resolve(base.pov)
+        pov_id = pov.effective_id if pov else (
+            ch.pov_character_id or base.pov_character_id or ch.pov)
         ch.pov_character_id = pov_id
-        if not ch.characters_involved:
-            ch.characters_involved = list(base.characters_involved) or [pov_id]
+        # participation follows the new POV: keep others, but never the old POV alone
+        involved = [pov_id] + [x for x in base.characters_involved
+                               if x and x != base.pov_character_id]
+        ch.characters_involved = list(dict.fromkeys(involved))
         ch.character_decisions = [CharacterDecision(
             character_id=pov_id, decision=ch.key_action or ch.summary,
             motivation=(pov.current_goal or pov.desire or "") if pov else "")]
-        ch.knowledge_changes = ([KnowledgeChange(
-            character_id=pov_id, change=ch.info_change,
-            source=f"第 {ch.number} 章 · {(ch.key_action or ch.summary)[:16]}")]
-            if ch.info_change else [])
+        if ch.info_change:
+            anchor = base.threads[0] if base.threads else (ch.key_action or ch.summary)[:20]
+            ch.knowledge_changes = [KnowledgeChange(
+                character_id=pov_id, change=ch.info_change,
+                source=f"第 {ch.number} 章 · 与〈{anchor}〉相关")]
+        else:
+            ch.knowledge_changes = []
         ch.relationship_changes = self._recompute_relationship(ch, base)
 
     def _recompute_relationship(self, ch: ChapterPlan, base: ChapterPlan):

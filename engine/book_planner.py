@@ -274,6 +274,10 @@ class BookPlanner:
         seed: Optional[int] = None,
     ) -> BookPlan:
         template = template or "linear_causality"
+        if self.characters and not any(getattr(c, "pov", True) for c in self.characters):
+            raise ValueError(
+                "没有可作视角（POV）的人物：请至少把一名 core/supporting 人物的 pov 设为 true，"
+                "否则全书结构无法确定由谁观察。（当前所有人物 pov=false）")
         turns = self._key_turns(idea)
         book = BookPlan(
             title=self.theme.title or "未命名",
