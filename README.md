@@ -1,4 +1,4 @@
-# JazzWriter（小说爵士引擎）`v2.19`
+# JazzWriter（小说爵士引擎）`v2.20`
 
 > **长篇小说结构即兴引擎 / Human-AI Improvisational Writing System。**
 > 主要产物不是小说正文，而是**故事方案、全书梗概、分卷结构、逐章摘要卡片，以及人物与关系网络**。
@@ -248,7 +248,8 @@ python main.py book --from-plan --pov 林 --no-save
 每次「按结构渲染正文」都会生成一个**自包含的阅读页**，并**默认同步到远端**：
 
 - 生成：`docs/preview/<项目>.html`，以及索引 `docs/preview/index.html`（多部作品并列）。
-- 自动同步：渲染后自动 `git add/commit/push docs/preview`；用 `NJE_PREVIEW_AUTOPUSH=0` 关闭，或 `book --from-plan --no-publish`。
+- **字数统计**：每章标注字数、页脚显示全书总字数；GUI「正文」页与 CLI `book` 概览表同样给出每章/全书字数。
+- 自动同步：渲染后自动 `git add/commit/push docs/preview`（push 失败会自动重试）；用 `NJE_PREVIEW_AUTOPUSH=0` 关闭，或 `book --from-plan --no-publish`。
 - 单独重发：`python main.py preview [--no-publish]`。
 - 在线地址：`https://<user>.github.io/<repo>/preview/<项目>.html`
   （本仓库即 `https://qianluxi.github.io/JazzWriter/preview/`）。
@@ -323,7 +324,7 @@ feedback/       theme_check / character_check / novelty_check / conductor
 jam_session/    director / soloist / observer / editor / orchestrator
 llm/            base / mock / openai_provider / opencode_provider
 session.py  store.py  cli.py  gui.py  main.py
-tests/          回归测试（127 项）
+tests/          回归测试（131 项）
 projects/       独立小说的乐谱与稿子（示例见 projects/border2020/；产出随各项目目录保存）
 ```
 
@@ -343,7 +344,7 @@ projects/       独立小说的乐谱与稿子（示例见 projects/border2020/�
 ## 测试
 
 ```powershell
-python -m unittest discover -s tests     # 127 项：确定性 / 记录 / 连续性 / 约束注入 / 结构校验 / 人物关系 / 反馈边界 / 向量记忆 / Jam / 项目隔离 / 事实冲突审阅
+python -m unittest discover -s tests     # 131 项：确定性 / 记录 / 连续性 / 约束注入 / 结构校验 / 人物关系 / 反馈边界 / 向量记忆 / Jam / 项目隔离 / 事实冲突审阅
 ```
 
 ---
@@ -352,6 +353,7 @@ python -m unittest discover -s tests     # 127 项：确定性 / 记录 / 连续
 
 | 版本 | 内容 |
 | --- | --- |
+| **v2.20** | 每章/全书**字数统计**（GUI/CLI/在线预览）· 预览推送失败自动重试 |
 | **v2.19** | 删除项目：本地删除 + 同步移除在线预览并推送（GUI「删除项目」/ CLI `project delete`） |
 | **v2.18** | 在线正文预览：渲染正文即生成 `docs/preview/` 并默认推送远端（GitHub Pages 可访问） |
 | **v2.17** | 项目「编辑/重建」（改简介重生成整套设定，旧文件归档 `_backup_*`）· 打开项目有明确反馈/当前项目标签 · CLI `project show/regen` |

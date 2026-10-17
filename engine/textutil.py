@@ -51,6 +51,13 @@ def similarity(a_text: str, b_text: str) -> float:
     return cosine(vector(a_text), vector(b_text))
 
 
+def word_count(text: str) -> int:
+    """Chinese "字数": CJK characters + latin word tokens (whitespace/punct excluded)."""
+    if not text:
+        return 0
+    return len(_CJK.findall(text)) + len(_LATIN.findall(text))
+
+
 def contains_any(text: str, needles: Iterable[str]) -> int:
     return sum(1 for n in needles if n and n in text)
 

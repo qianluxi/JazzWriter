@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from core.harmony import Harmony
 from core.improviser import HarmonyContext, Improviser
+from engine.textutil import word_count
 from llm.base import LLMProvider
 
 if TYPE_CHECKING:
@@ -29,9 +30,14 @@ class Take:
     cue: Dict[str, Any] = field(default_factory=dict)
     context: Dict[str, Any] = field(default_factory=dict)
 
+    @property
+    def word_count(self) -> int:
+        return word_count(self.text)
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "text": self.text,
+            "word_count": self.word_count,
             "chapter": self.chapter,
             "mode": self.mode,
             "style": self.style,

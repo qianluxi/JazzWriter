@@ -106,7 +106,7 @@ def build() -> Document:
     _cjk(srun.font)
     ver = doc.add_paragraph()
     ver.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    vrun = ver.add_run("适用版本 v2.19　·　Novel Jazz Engine")
+    vrun = ver.add_run("适用版本 v2.20　·　Novel Jazz Engine")
     vrun.font.size = Pt(11)
     vrun.font.color.rgb = RGBColor.from_string("999999")
     _cjk(vrun.font)
@@ -302,6 +302,8 @@ def build() -> Document:
            "Build and deployment → Source 选 Deploy from a branch → Branch main、Folder /docs → Save"
            "（预览位于 docs/preview/，站点根为 docs/index.html）。"
            "不想自动推送可设环境变量 NJE_PREVIEW_AUTOPUSH=0，或命令加 --no-publish。")
+    p(doc, "字数统计：渲染会为每章统计字数，并给出全书总字数；在线预览的每章标题与页脚、"
+           "GUI「正文」页、CLI `book` 概览表都会显示。")
     h2(doc, "试写与多版本")
     bullets(doc, [
         "「演奏一章（试写）」：局部即兴一段正文，含“即兴决策 Cue”“评价”。",

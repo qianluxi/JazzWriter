@@ -830,9 +830,13 @@ class App:
 
     def _render_book_prose(self, results) -> None:
         body, evals = [], []
+        total = 0
         for i, take, eva in results:
-            body.append(f"──────── 第 {i} 章 · {take.style} ────────\n{take.text}\n")
+            total += take.word_count
+            body.append(f"──────── 第 {i} 章 · {take.style} · {take.word_count} 字 ────────\n{take.text}\n")
             evals.append(f"【第 {i} 章】\n{self._eval_text(eva)}")
+        body.append(f"──────── 全书：{len(results)} 章 · 共 {total} 字"
+                    f"（平均 {total // max(1, len(results))} 字/章）────────")
         self._set_tab("正文", "\n".join(body))
         self._set_tab("评价", "\n\n".join(evals))
         self.nb.select(list(self.tabs).index("正文"))
@@ -902,7 +906,8 @@ class App:
 
     def _render_play(self, result) -> None:
         take, eva, advice, skeletons = result
-        header = f"──────── 第 {take.chapter} 章 · {take.mode} · {take.style} · POV {take.pov} ────────\n"
+        header = (f"──────── 第 {take.chapter} 章 · {take.mode} · {take.style} · "
+                  f"POV {take.pov} · {take.word_count} 字 ────────\n")
         self._set_tab("正文", header + take.text)
         self._set_tab("即兴决策", self._cue_text(take))
         self._set_tab("评价", self._eval_text(eva))

@@ -20,6 +20,7 @@ from engine.composer import Take
 from engine.evaluator import Evaluation
 from engine.outline_expander import TEMPLATE_LABELS
 from engine.semantic_similarity import MODES as EVAL_MODES
+from engine.textutil import word_count
 from improvisation.improvisation_score import MODE_PRESETS
 from session import Session
 from store import (
@@ -467,6 +468,8 @@ def cmd_book(args) -> int:
             console.print(f"[red]{exc}[/red]")
             return 2
         console.print("[dim]由 book_plan.json 的结构渲染正文 …[/dim]")
+        total_words = sum(t.word_count for _, t, _ in results)
+        console.print(f"[bold]全书字数：{total_words}[/bold]（{len(results)} 章）")
         info = session.last_publish
         if info:
             console.print(f"[green]在线预览[/green] → {info['path']}"
@@ -490,17 +493,20 @@ def cmd_book(args) -> int:
             save=not args.no_save, update_state=args.update_state)
 
     summary = Table(title="全书概览 · Book", header_style="bold")
-    for col in ("章", "场景", "风格", "种子", "总分", "评级"):
+    for col in ("章", "场景", "风格", "种子", "字数", "总分", "评级"):
         summary.add_column(col)
+    total_words = 0
     for i, take, evaluation in results:
-        title = f"第 {i} 章 · {take.mode} · {take.style} · POV {take.pov}"
+        total_words += take.word_count
+        title = f"第 {i} 章 · {take.mode} · {take.style} · POV {take.pov}（{take.word_count} 字）"
         console.print(Panel(take.text, title=title, border_style="cyan", padding=(1, 2)))
         _show_cue(take)
         _show_evaluation(evaluation)
         seed_shown = take.cue.get("seed_int") if take.cue else ""
         summary.add_row(str(i), take.scene[:24], take.style, str(seed_shown),
-                        f"{evaluation.overall:.0%}", evaluation.grade)
+                        str(take.word_count), f"{evaluation.overall:.0%}", evaluation.grade)
     console.print(summary)
+    console.print(f"[bold]全书字数：{total_words}[/bold]（{len(results)} 章，平均 {total_words // max(1, len(results))} 字/章）")
     if not args.no_save:
         console.print("[green]章节已保存到 output/chapters/[/green]")
     console.print("[dim]提示：用 `python main.py history` 查看趋势，`python main.py advice` 看参数建议。[/dim]")
@@ -811,12 +817,15 @@ def cmd_preview(args) -> int:
         console.print(f"[red]尚无章节正文于 {base}。先运行 `book --from-plan`。[/red]")
         return 2
     takes = []
+    total_words = 0
     for i, f in enumerate(files, 1):
         text = f.read_text(encoding="utf-8")
         parts = text.split("---")
         if len(parts) >= 3:
             text = "---".join(parts[2:]).strip()
+        total_words += word_count(text)
         takes.append((i, SimpleNamespace(text=text, pov="", chapter=i, style=f.stem)))
+    console.print(f"[bold]全书字数：{total_words}[/bold]（{len(files)} 章）")
     info = session.publish_preview(takes, push=not getattr(args, "no_publish", False))
     console.print(f"[green]在线预览[/green] → {info['path']}"
                   + (f"　{info['url']}" if info.get("url") else "")
