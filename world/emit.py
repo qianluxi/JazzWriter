@@ -7,6 +7,7 @@ from typing import List
 
 from world.checker import WorldChecker
 from world.graph import DependencyGraph
+from world.idea_forge import DIMENSION_LABELS
 from world.models import KIND_LABELS, WorldDoc
 
 _SECTION_ORDER = (
@@ -45,6 +46,12 @@ def build_markdown(doc: WorldDoc) -> str:
         lines.append("")
         lines.append(f"- **取向**：{idea.label}（{idea.lens}）")
         lines.append(f"- **一句话**：{idea.logline}")
+        if idea.dimensions:
+            lines.append("- **五维（世界机制的五个维度）**：")
+            for key, label in DIMENSION_LABELS.items():
+                value = idea.dimensions.get(key, "")
+                if value:
+                    lines.append(f"  - {label}：{value}")
         lines.append("")
 
     lines.append("## 核心规则")

@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from world.graft import OPS
+from world.idea_forge import DIMENSION_LABELS
 from world.studio import WorldStudio
 
 try:
@@ -31,8 +32,10 @@ def _print_ideas(studio: WorldStudio) -> None:
         print(f"[{i}] {idea.label}｜{idea.lens}｜差异度 {idea.distinctness}{dup}")
         print(f"    一句话：{idea.logline}")
         print(f"    核心规则：{idea.core_rule}")
-        if idea.differentiators:
-            print(f"    独特维度：{'、'.join(idea.differentiators)}")
+        for key, label in DIMENSION_LABELS.items():
+            value = idea.dimensions.get(key, "")
+            if value:
+                print(f"    {label}：{value}")
         print()
 
 

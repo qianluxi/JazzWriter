@@ -17,6 +17,7 @@ from typing import List, Optional
 
 from world.models import STATES
 from world.graft import OPS
+from world.idea_forge import DIMENSION_LABELS
 from world.studio import WORLDS_DIR, WorldStudio
 
 try:
@@ -70,9 +71,10 @@ class WorldStudioApp:
 
         left = ttk.Frame(mid)
         left.pack(side="left", fill="y")
-        ttk.Label(left, text="世界原型（底层逻辑不同）").pack(anchor="w")
+        ttk.Label(left, text="世界原型（底层逻辑不同，选中可看五维）").pack(anchor="w")
         self.ideas = tk.Listbox(left, width=40, height=11)
         self.ideas.pack(fill="x")
+        self.ideas.bind("<<ListboxSelect>>", self.on_select_idea)
         ttk.Button(left, text="选择并生长", command=self.on_grow).pack(fill="x", pady=4)
 
         ttk.Label(left, text="设定条目（选中后改状态/锁定）").pack(anchor="w", pady=(6, 0))
@@ -240,6 +242,22 @@ class WorldStudioApp:
         self._refresh_entities()
         self._show_markdown(self.studio.md_path)
         self.status.set(f"{entity_id} 锁定状态已切换")
+
+    def on_select_idea(self, _event=None) -> None:
+        sel = self.ideas.curselection()
+        if not sel or not self.studio:
+            return
+        idea = self.studio.doc.ideas[sel[0]]
+        lines = [f"{idea.label}（{idea.lens}）　差异度 {idea.distinctness}",
+                 f"一句话：{idea.logline}",
+                 f"核心规则：{idea.core_rule}",
+                 "", "五维（世界机制的五个维度）："]
+        for key, label in DIMENSION_LABELS.items():
+            value = idea.dimensions.get(key, "")
+            if value:
+                lines.append(f"· {label}：{value}")
+        lines += ["", "（点「选择并生长」按这个原型展开世界）"]
+        self._set_view("\n".join(lines))
 
     def on_select_entity(self, _event=None) -> None:
         entity_id = self._selected_entity()

@@ -326,6 +326,17 @@ class StudioTest(unittest.TestCase):
             self.assertFalse(list(studio.data_dir.glob("*.tmp")))
             json.loads(studio.json_path.read_text(encoding="utf-8"))     # still valid
 
+    def test_markdown_lists_the_five_dimensions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            studio = WorldStudio.create(SEED, root=Path(tmp), provider="mock")
+            studio.raise_ideas()
+            studio.choose("制度世界")
+            studio.grow()
+            text = studio.export().read_text(encoding="utf-8")
+            self.assertIn("五维", text)
+            for label in ("规则机制", "权力结构", "知识分配", "人物困境", "时间动力"):
+                self.assertIn(label, text)
+
     def test_markdown_marks_locked_entries(self):
         with tempfile.TemporaryDirectory() as tmp:
             studio = WorldStudio.create(SEED, root=Path(tmp), provider="mock")
