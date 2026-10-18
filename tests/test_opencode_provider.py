@@ -37,6 +37,12 @@ class OpenCodeProviderTest(unittest.TestCase):
         self.assertIn("expired", message)
         self.assertEqual(OpenCodeProvider._extract_error({}), "")
 
+    def test_expired_error_gets_a_restart_hint(self):
+        hinted = OpenCodeProvider._with_hint("opencode 上游错误（api_key_expired）：This API key has expired.")
+        self.assertIn("重启", hinted)
+        self.assertIn("opencode serve", hinted)
+        self.assertEqual(OpenCodeProvider._with_hint("other error"), "other error")
+
     def test_generate_without_server_raises_friendly(self):
         provider = OpenCodeProvider(base_url="http://127.0.0.1:59999", timeout=0.5)
         with self.assertRaises(LLMError):

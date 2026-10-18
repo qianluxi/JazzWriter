@@ -116,9 +116,18 @@ class OpenCodeProvider(LLMProvider):
         data = self._request("POST", f"/session/{session_id}/message", body)
         text = self._extract_text(data)
         if not text:
-            error = self._extract_error(data)
-            raise LLMError(error or "opencode 返回内容为空（检查 model 是否已连接/可用）")
+            error = self._extract_error(data) or "opencode 返回内容为空（检查 model 是否已连接/可用）"
+            raise LLMError(self._with_hint(error))
         return text
+
+    @staticmethod
+    def _with_hint(message: str) -> str:
+        """Add an actionable hint for the common credential-staleness failures."""
+        lowered = message.lower()
+        if "expired" in lowered or "insufficient" in lowered:
+            return (message + "（提示：opencode 端凭证已变更/过期；请在 opencode 中重新登录，"
+                             "并重启 `opencode serve` —— 老进程会缓存启动时的旧凭证）")
+        return message
 
     @staticmethod
     def _extract_error(data: Any) -> str:
