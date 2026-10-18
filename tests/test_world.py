@@ -65,6 +65,28 @@ class PropertyAnalysisTest(unittest.TestCase):
         self.assertEqual(set(rule_properties("", "法律禁止它。")),
                          {"observability", "scarcity", "enforcement", "cost", "mutability"})
 
+    def test_negation_and_scope_matrix(self):
+        cases = {
+            "记忆不会被建筑看见。": ("observability", "低"),
+            "只有少数人能看见。": ("observability", "低"),
+            "人人都能看见。": ("observability", "高"),
+            "这种能力并不稀缺。": ("scarcity", "充足"),
+            "并非人人都能使用它。": ("scarcity", "稀缺"),
+            "接触它不需要付出代价。": ("cost", "可承受"),
+            "只有在夜晚才可观测。": ("observability", "低"),
+        }
+        for sentence, (dim, expected) in cases.items():
+            analysis = rule_property_analysis("", sentence)
+            self.assertEqual(analysis[dim]["value"], expected, sentence)
+
+    def test_offline_modules_differ_by_rule(self):
+        a = WorldExpander().expand(ExpanderTest()._doc("「记忆」只有少数人能听见，代价高昂。"))
+        b = WorldExpander().expand(ExpanderTest()._doc("「记忆」写入法律，人人可见，且会不断改写。"))
+        ids_a = {e.id for e in a.entities}
+        ids_b = {e.id for e in b.entities}
+        self.assertTrue(ids_a - ids_b)
+        self.assertTrue(ids_b - ids_a)
+
 
 class ExpanderTest(unittest.TestCase):
     def _doc(self, rule: str = "围绕「记忆」形成了可执行、可争讼、可世袭的执法体系。") -> WorldDoc:
@@ -114,11 +136,51 @@ class ExpanderTest(unittest.TestCase):
              "statement": "模型推导出的后果。", "basis": "模型", "depends_on": ["rule-1"]},
             {"id": "institution-1", "kind": "institution", "name": "模型制度",
              "statement": "模型推导出的制度。"},
+            {"id": "history-1", "kind": "history", "name": "模型历史",
+             "statement": "模型推导出的历史。"},
         ], "open_questions": ["模型问题？"]}))
         doc = self._doc()
         WorldExpander(llm=good).expand(doc)
         self.assertIn("模型问题？", doc.open_questions)
         self.assertEqual(doc.of_kind("consequence")[0].name, "模型后果")
+        self.assertEqual(len(doc.of_kind("history")), 1)
+
+    def test_model_missing_key_category_falls_back(self):
+        partial = _StubLLM(json.dumps({"entities": [
+            {"id": "consequence-1", "kind": "consequence", "name": "只有后果",
+             "statement": "只有一条后果。"},
+        ]}))
+        doc = self._doc()
+        WorldExpander(llm=partial).expand(doc)
+        self.assertTrue(doc.of_kind("institution"))       # offline fallback
+        self.assertTrue(any("关键类别" in n for n in doc.notes))
+
+    def test_model_duplicate_ids_and_bad_depends_are_sanitized(self):
+        messy = _StubLLM(json.dumps({"entities": [
+            {"id": "consequence-1", "kind": "consequence", "name": "A",
+             "statement": "A。", "depends_on": "rule-1"},
+            {"id": "consequence-1", "kind": "consequence", "name": "B",
+             "statement": "B。", "depends_on": ["ghost-1"]},
+            {"id": "institution-1", "kind": "institution", "name": "C", "statement": "C。"},
+            {"id": "history-1", "kind": "history", "name": "D", "statement": "D。"},
+        ]}))
+        doc = self._doc()
+        WorldExpander(llm=messy).expand(doc)
+        ids = [e.id for e in doc.entities]
+        self.assertEqual(len(ids), len(set(ids)))                        # unique
+        self.assertTrue(any("重复" in n for n in doc.notes))
+        self.assertTrue(all(isinstance(e.depends_on, list) for e in doc.entities))
+        self.assertTrue(any("无效依赖" in n for n in doc.notes))
+
+    def test_plan_not_satisfied_falls_back(self):
+        ignore_plan = _StubLLM(json.dumps({"entities": [
+            {"id": "consequence-1", "kind": "consequence", "name": "通用", "statement": "通用后果。"},
+            {"id": "institution-1", "kind": "institution", "name": "通用制度", "statement": "通用制度。"},
+            {"id": "history-1", "kind": "history", "name": "通用历史", "statement": "通用历史。"},
+        ]}))
+        doc = self._doc()
+        WorldExpander(llm=ignore_plan).expand(doc, plan={"properties": {"scarcity": "稀缺"}})
+        self.assertTrue(any("未满足嫁接计划" in n for n in doc.notes))
 
 
 class CheckerTest(unittest.TestCase):
@@ -173,6 +235,17 @@ class GraftTest(unittest.TestCase):
             rules[op] = doc.of_kind("rule")[0].statement
         self.assertEqual(len(set(rules.values())), 3)
 
+    def test_reverse_premise_offers_candidates(self):
+        engine = GraftEngine()
+        skel = engine.extract(SRC, source_name="样例")
+        plan = engine.plan(skel, "反转前提", "一个没有夜晚的城市")
+        candidates = plan["invert_candidates"]
+        self.assertGreaterEqual(len(candidates), 3)
+        self.assertEqual(len(set(candidates)), len(candidates))
+        self.assertTrue(any("任何人" in c for c in candidates))
+        self.assertTrue(any("无法" in c for c in candidates))
+        self.assertEqual(plan["original_premise"], plan["base_rule"])
+
     def test_cross_requires_second_material(self):
         engine = GraftEngine()
         skel = engine.extract(SRC, source_name="样例")
@@ -223,6 +296,35 @@ class StudioTest(unittest.TestCase):
             studio = WorldStudio(SEED, slug="../x", root=Path(tmp), provider="mock")
             with self.assertRaises(ValueError):
                 _ = studio.data_dir
+
+    def test_edit_preserves_identity_and_reports_impact(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            studio = WorldStudio.create(SEED, root=Path(tmp), provider="mock")
+            studio.raise_ideas()
+            studio.choose("制度世界")
+            studio.grow()
+            before = studio.doc.by_id("consequence-1")
+            deps, source = list(before.depends_on), before.source
+            result = studio.edit("consequence-1", statement="作者改写后的后果。")
+            self.assertEqual(result["changed"], ["statement"])
+            after = studio.doc.by_id("consequence-1")
+            self.assertEqual(after.statement, "作者改写后的后果。")
+            self.assertEqual(after.source, source)
+            self.assertEqual(list(after.depends_on), deps)
+            with self.assertRaises(ValueError):
+                studio.edit("rule-1", statement="未确认就改核心规则")     # confirmed -> needs confirm
+            rule_result = studio.edit("rule-1", statement="作者重写的核心规则。", confirm=True)
+            self.assertTrue(rule_result["reverify"])
+
+    def test_save_is_atomic_and_keeps_backup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            studio = WorldStudio.create(SEED, root=Path(tmp), provider="mock")
+            studio.raise_ideas()
+            studio.export()
+            studio.export()
+            self.assertTrue((studio.data_dir / "world.json.bak").exists())
+            self.assertFalse(list(studio.data_dir.glob("*.tmp")))
+            json.loads(studio.json_path.read_text(encoding="utf-8"))     # still valid
 
     def test_markdown_marks_locked_entries(self):
         with tempfile.TemporaryDirectory() as tmp:

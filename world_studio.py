@@ -162,6 +162,25 @@ def cmd_impact(args) -> int:
     return 0
 
 
+def cmd_edit(args) -> int:
+    studio = _load(args)
+    try:
+        result = studio.edit(args.entity, name=args.name, statement=args.statement,
+                             basis=args.basis, state=args.state, confirm=args.yes)
+    except (ValueError, KeyError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    studio.export()
+    print(f"已修改 {result['entity']}：{('、'.join(result['changed'])) or '（无变化）'}")
+    if result.get("reverify"):
+        print("已修改核心规则 → 以下候选条目需要复核：")
+        for name in result["reverify"]:
+            print(f"  - {name}")
+    if result.get("affected"):
+        print("全部受影响条目：" + "、".join(result["affected"]))
+    return 0
+
+
 def cmd_state(args) -> int:
     studio = _load(args)
     entity = studio.set_state(args.entity, args.state)
@@ -247,6 +266,16 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("entity")
     p.add_argument("state")
     p.set_defaults(func=cmd_state)
+
+    p = sub.add_parser("edit", help="编辑条目内容（保留 id/来源/依赖；锁定或已确认需 --yes）")
+    p.add_argument("slug")
+    p.add_argument("entity")
+    p.add_argument("--name", default=None)
+    p.add_argument("--statement", default=None)
+    p.add_argument("--basis", default=None)
+    p.add_argument("--state", default=None)
+    p.add_argument("--yes", action="store_true", help="确认修改已锁定/已确认条目")
+    p.set_defaults(func=cmd_edit)
 
     p = sub.add_parser("show", help="查看世界观状态")
     p.add_argument("slug")

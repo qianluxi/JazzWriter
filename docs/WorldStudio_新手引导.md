@@ -1,7 +1,7 @@
 # World Studio 新手引导
 
 > 世界观工坊 · 从只言片语到一份世界观文档
-> 适用版本 **v2.26** · Novel Jazz Engine
+> 适用版本 **v2.27** · Novel Jazz Engine
 >
 > 另见 Word 版：`docs/WorldStudio_新手引导.docx`（由 `python tools/make_manual_world.py` 生成）
 
@@ -73,6 +73,10 @@ World Studio（世界观工坊）是 JazzWriter 里与「小说编排」并列�
 
 **四种状态**：`已确认 confirmed` / `候选 candidate` / `未决 open` / `有意保留的矛盾 contradiction`。
 
+**结构化编辑**：可编辑任意条目的**名称 / 内容 / 依据 / 状态**——修改时**保留 id、来源与依赖关系**。
+编辑**已锁定或已确认**的条目需要**确认**；**修改核心规则后，系统会列出需要复核的下游候选**（不静默覆盖）。
+GUI 在左下“编辑选中条目”里改；命令行用 `edit`。
+
 **依赖溯源**：条目依赖是 规则 → 后果 → 制度/历史 → 地理/冲突 的链，
 可反查"改某条规则会牵连谁"：`python world_studio.py impact <目录名> rule-1`。
 
@@ -103,6 +107,7 @@ World Studio（世界观工坊）是 JazzWriter 里与「小说编排」并列�
 | `graft <文件> --op 反转前提` | 导入设定并变形（派生新世界） |
 | `graft a.txt --op 世界交叉 --second b.txt` | 世界交叉（必须有第二份材料） |
 | `check <目录名>` | 一致性提示（含依据/把握度/离线声明） |
+| `edit <目录名> rule-1 --statement "…" [--yes]` | 编辑条目（保留 id/来源/依赖；锁定或已确认需 --yes） |
 | `impact <目录名> rule-1` | 修改该条目会牵连哪些设定 |
 | `state <目录名> consequence-1 confirmed` | 设置条目状态 |
 | `show <目录名>` / `list` | 查看状态 / 列出本地世界观 |
@@ -131,7 +136,8 @@ $env:NJE_MODEL      = "deepseek-chat"
 # 顶部「模型」选 openai
 ```
 
-模型返回的 JSON 会被严格校验；字段缺失或类别非法时，忽略并回退到离线推导，且文档中会有提示。
+模型返回的 JSON 会被严格校验（`kind` 白名单、最低类别覆盖、id 唯一、依赖引用有效、无环）；
+不合格时忽略并**记录原因**、必要时**回退到离线推导**，且文档中会有提示。保存采用**原子写入并保留 `.bak` 备份**。
 
 ---
 

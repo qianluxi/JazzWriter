@@ -9,6 +9,7 @@ entry is candidate material for the author.
 
 from __future__ import annotations
 
+import re
 from typing import Dict, List, Optional, Tuple
 
 from pydantic import Field
@@ -28,12 +29,6 @@ OPS: Dict[str, str] = {
     "反转前提": "改变一条关键假设，观察整个世界的连锁变化",
 }
 
-_ANTONYM = (
-    ("只有", "人人"), ("少数", "多数"), ("稀缺", "充足"), ("垄断", "公开"), ("独占", "共享"),
-    ("听见", "听不见"), ("看见", "看不见"), ("感知", "无法感知"), ("显形", "隐形"),
-    ("禁止", "允许"), ("必须", "可以不"), ("不得", "可以"), ("秘密", "公开"),
-    ("昂贵", "廉价"), ("高昂", "低廉"), ("代价", "无代价"), ("死亡", "永生"), ("遗忘", "铭记"),
-)
 _FLIP = {
     "低": "高", "高": "低", "稀缺": "充足", "充足": "稀缺",
     "成文法": "习惯法", "习惯法": "成文法", "高昂": "可承受", "可承受": "高昂",
@@ -155,18 +150,19 @@ class GraftEngine:
             ]
             plan["expected"] = "保留底层逻辑，焦点移向边缘区域或相邻时代。"
         else:  # 反转前提
-            new_rule = _reverse(base_rule, ref)
+            candidates = _reverse_candidates(base_rule, ref)
+            new_rule = candidates[0]
+            plan["original_premise"] = base_rule
+            plan["invert_candidates"] = candidates
+            plan["kept_conditions"] = [f"保留「{ref}」作为世界的关键变量"]
             plan["remove"] = [base_rule]
             plan["properties"] = {k: _FLIP.get(v, v) for k, v in
                                   {"observability": "低", "scarcity": "稀缺",
                                    "enforcement": "成文法", "cost": "高昂",
                                    "mutability": "被视为不可变"}.items()}
-            plan["extra_rules"] = [
-                f"前提反转后，原先被垄断的「{ref}」变为人人可及；"
-                "由此产生的稀缺从“接近”转移到“筛选与信任”。",
-            ]
+            plan["extra_rules"] = candidates
             plan["conflicts"] = [f"与原作前提相反：{base_rule}"]
-            plan["expected"] = "关键前提被具体反转，全部后果重新推导。"
+            plan["expected"] = "关键前提被具体反转（含多个候选），全部后果重新推导。"
         if second is not None:
             plan["second_source"] = second.source_name or "（未命名材料）"
         plan["new_rule"] = new_rule
@@ -199,8 +195,9 @@ class GraftEngine:
             "add": [str(x) for x in plan.get("extra_rules", [])],
             "downstream": downstream,
         }
-        doc.graft_plan = {k: plan.get(k, []) for k in ("op", "base_rule", "keep", "remove",
-                                                       "properties", "expected")}
+        doc.graft_plan = {k: plan.get(k, []) for k in
+                          ("op", "base_rule", "keep", "remove", "properties", "expected",
+                           "original_premise", "invert_candidates", "kept_conditions")}
         doc.graft_diff = diff
         if plan.get("conflicts"):
             doc.contradictions.extend([str(c) for c in plan["conflicts"]])
@@ -229,14 +226,32 @@ def _rule_of(plan: dict, seed: str) -> str:
 
 
 def _reverse(rule: str, ref: str) -> str:
-    out = rule
-    for src, dst in _ANTONYM:
-        if src in out:
-            out = out.replace(src, dst, 1)
-            break
-    else:
-        out = f"{rule} 彻底失效（其对立面取而代之）"
-    return f"{out}"
+    return _reverse_candidates(rule, ref)[0]
+
+
+_PREDICATE = re.compile(r"被(?P<obj>[^，。;；、]{1,6}?)(?P<verb>听见|看见|感知|解读|使用|记录|读取)")
+
+
+def _reverse_candidates(rule: str, ref: str) -> List[str]:
+    """Explicit alternative premises instead of a lone word swap.
+
+    For "只有建筑能听见记忆" this yields: any subject may perceive it; no subject
+    may perceive it; the original subject is kept but the scope is constrained.
+    The author picks which premise to actually invert.
+    """
+    match = _PREDICATE.search(rule)
+    if match:
+        obj, verb = match.group("obj"), match.group("verb")
+        return [
+            f"任何人都可以{verb}「{ref}」，不再限于{obj}。",
+            f"任何存在都无法{verb}「{ref}」，包括{obj}。",
+            f"仍然只有{obj}能{verb}「{ref}」，但{verb}到的内容必须先被登记。",
+        ]
+    return [
+        f"原命题「{rule}」的限制对象被取消：人人都能满足该前提。",
+        f"原命题「{rule}」被彻底否定：任何主体都无法满足该前提。",
+        f"原命题「{rule}」保留主体，但仅在特定条件下成立。",
+    ]
 
 
 def _ref(seed: str) -> str:

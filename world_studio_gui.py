@@ -76,14 +76,27 @@ class WorldStudioApp:
         ttk.Button(left, text="选择并生长", command=self.on_grow).pack(fill="x", pady=4)
 
         ttk.Label(left, text="设定条目（选中后改状态/锁定）").pack(anchor="w", pady=(6, 0))
-        self.entities = tk.Listbox(left, width=40, height=11)
+        self.entities = tk.Listbox(left, width=40, height=10)
         self.entities.pack(fill="x")
+        self.entities.bind("<<ListboxSelect>>", self.on_select_entity)
         st = ttk.Frame(left)
         st.pack(fill="x", pady=4)
         for state in STATES:
             ttk.Button(st, text=_STATE_LABELS[state], width=6,
                        command=lambda s=state: self.on_state(s)).pack(side="left")
         ttk.Button(left, text="锁定 / 解锁", command=self.on_lock).pack(fill="x")
+
+        edit_box = ttk.LabelFrame(left, text="编辑选中条目（保留 id/来源/依赖）", padding=6)
+        edit_box.pack(fill="x", pady=6)
+        self.ed_name = tk.StringVar()
+        self.ed_statement = tk.StringVar()
+        self.ed_basis = tk.StringVar()
+        for label, var in (("名称", self.ed_name), ("内容", self.ed_statement), ("依据", self.ed_basis)):
+            row = ttk.Frame(edit_box)
+            row.pack(fill="x")
+            ttk.Label(row, text=label, width=5).pack(side="left")
+            ttk.Entry(row, textvariable=var).pack(side="left", fill="x", expand=True)
+        ttk.Button(edit_box, text="保存编辑", command=self.on_edit).pack(fill="x", pady=(4, 0))
 
         graft_box = ttk.LabelFrame(left, text="设定嫁接", padding=6)
         graft_box.pack(fill="x", pady=6)
@@ -225,7 +238,45 @@ class WorldStudioApp:
         self.studio.lock(entity_id, not (entity.locked if entity else False))
         self.studio.export()
         self._refresh_entities()
+        self._show_markdown(self.studio.md_path)
         self.status.set(f"{entity_id} 锁定状态已切换")
+
+    def on_select_entity(self, _event=None) -> None:
+        entity_id = self._selected_entity()
+        if not self.studio or not entity_id:
+            return
+        entity = self.studio.doc.by_id(entity_id)
+        self.ed_name.set(entity.name)
+        self.ed_statement.set(entity.statement)
+        self.ed_basis.set(entity.basis)
+
+    def on_edit(self) -> None:
+        entity_id = self._selected_entity()
+        if not self.studio or not entity_id:
+            messagebox.showinfo("提示", "请先在条目列表选择一个条目。")
+            return
+        entity = self.studio.doc.by_id(entity_id)
+        needs_confirm = entity.locked or entity.state == "confirmed"
+        if needs_confirm and not messagebox.askyesno(
+                "确认修改", f"「{entity.name}」已锁定或已确认，确定要修改吗？"):
+            return
+        try:
+            result = self.studio.edit(
+                entity_id, name=self.ed_name.get(), statement=self.ed_statement.get(),
+                basis=self.ed_basis.get(), confirm=True)
+            self.studio.export()
+        except Exception as exc:
+            messagebox.showerror("编辑失败", str(exc))
+            return
+        self._refresh_entities()
+        self._show_markdown(self.studio.md_path)
+        if result.get("reverify"):
+            messagebox.showinfo(
+                "核心规则已修改",
+                "以下候选条目需要复核：\n\n" + "\n".join(result["reverify"]))
+        self.status.set(f"已保存 {entity_id} 的编辑"
+                        + (f"；{len(result.get('affected', []))} 条受影响设定需复核"
+                           if result.get("affected") else ""))
 
     def on_graft(self) -> None:
         op = self.op_var.get()

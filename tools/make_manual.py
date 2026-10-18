@@ -106,7 +106,7 @@ def build() -> Document:
     _cjk(srun.font)
     ver = doc.add_paragraph()
     ver.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    vrun = ver.add_run("适用版本 v2.26　·　Novel Jazz Engine")
+    vrun = ver.add_run("适用版本 v2.27　·　Novel Jazz Engine")
     vrun.font.size = Pt(11)
     vrun.font.color.rgb = RGBColor.from_string("999999")
     _cjk(vrun.font)
@@ -368,6 +368,8 @@ def build() -> Document:
         "状态区分：已确认 confirmed / 候选 candidate / 未决 open / 有意保留的矛盾 contradiction；"
         "可在 GUI 里选中条目切换状态或锁定，也可用 CLI：world_studio.py state <slug> <条目> <状态>。"
         "Markdown 中**所有条目**都会标注状态与锁定（另有“锁定条目”清单）。",
+        "结构化编辑：可改条目的 名称/内容/依据/状态，保留 id/来源/依赖；锁定或已确认需确认；"
+        "改核心规则会列出需复核的下游候选（GUI 表单或 CLI edit）。",
         "多层依赖溯源：条目依赖是 规则 → 后果 → 制度/历史 → 地理/冲突 的链，可反查"
         "“若修改某条规则，会牵连哪些候选设定”：python world_studio.py impact <slug> rule-1。",
         "一致性提示只报告、不自动修正：合并同类重复、跨类别疑似冲突、**规则↔下游条目**专项检查，"

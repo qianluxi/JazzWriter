@@ -9,6 +9,7 @@ novel project until the author explicitly exports.
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
@@ -143,6 +144,43 @@ class WorldStudio:
             raise KeyError(f"unknown entity: {ref}")
         self.doc.lock(ref, locked)
 
+    def edit(
+        self,
+        ref: str,
+        *,
+        name: Optional[str] = None,
+        statement: Optional[str] = None,
+        basis: Optional[str] = None,
+        state: Optional[str] = None,
+        confirm: bool = False,
+    ) -> dict:
+        """Edit a structured entry, preserving id / source / depends_on / lock.
+
+        Editing a locked or already-confirmed entry requires ``confirm=True``.
+        Editing a rule's statement returns the downstream entries to re-review.
+        """
+        entity = self.doc.by_id(ref)
+        if entity is None:
+            raise KeyError(f"unknown entity: {ref}")
+        if (entity.locked or entity.state == "confirmed") and not confirm:
+            raise ValueError(f"条目 {ref} 已锁定或已确认，需显式确认（confirm=True）才能修改。")
+        if state is not None and state not in STATES:
+            raise ValueError(f"unknown state: {state}（可用：{', '.join(STATES)}）")
+        changed: List[str] = []
+        for field, value in (("name", name), ("statement", statement), ("basis", basis)):
+            if value is not None and getattr(entity, field) != value:
+                setattr(entity, field, value)
+                changed.append(field)
+        if state is not None and entity.state != state:
+            entity.state = state
+            changed.append("state")
+        result: dict = {"entity": entity.id, "changed": changed}
+        if entity.kind == "rule" and ("statement" in changed or "name" in changed):
+            report = DependencyGraph(self.doc).impact_report(entity.id)
+            result["reverify"] = report["candidates"]
+            result["affected"] = report["transitive"]
+        return result
+
     # -- graft mode ---------------------------------------------------------
     def graft(
         self,
@@ -185,16 +223,28 @@ class WorldStudio:
     # -- persistence --------------------------------------------------------
     def save(self) -> Path:
         self.data_dir.mkdir(parents=True, exist_ok=True)
-        self.json_path.write_text(
-            json.dumps(self.doc.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        payload = json.dumps(self.doc.to_dict(), ensure_ascii=False, indent=2)
+        self._atomic_write(self.json_path, payload)
         return self.json_path
 
     def export(self) -> Path:
         self.data_dir.mkdir(parents=True, exist_ok=True)
-        path = emit.write_markdown(self.doc, self.md_path)
+        self._atomic_write(self.md_path, emit.build_markdown(self.doc))
         self.save()
-        return path
+        return self.md_path
+
+    @staticmethod
+    def _atomic_write(path: Path, text: str) -> None:
+        """Write via a same-directory temp file + atomic replace, keeping one backup."""
+        tmp = path.parent / (path.name + ".tmp")
+        tmp.write_text(text, encoding="utf-8")
+        if path.exists():
+            backup = path.parent / (path.name + ".bak")
+            try:
+                backup.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+            except OSError:
+                pass
+        os.replace(tmp, path)
 
     @classmethod
     def load(cls, slug: str, *, root: Optional[Path] = None, provider: Optional[str] = None, llm=None) -> "WorldStudio":
