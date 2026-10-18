@@ -28,6 +28,15 @@ class OpenCodeProviderTest(unittest.TestCase):
         self.assertEqual(OpenCodeProvider._extract_text(sample), "xy")
         self.assertEqual(OpenCodeProvider._extract_text({}), "")
 
+    def test_extract_error_surfaces_upstream_message(self):
+        sample = {"info": {"error": {"name": "APIError", "data": {
+            "message": "This API key has expired.", "statusCode": 401,
+            "responseBody": "{\"error\":{\"code\":\"api_key_expired\"}}"}}}, "parts": []}
+        message = OpenCodeProvider._extract_error(sample)
+        self.assertIn("api_key_expired", message)
+        self.assertIn("expired", message)
+        self.assertEqual(OpenCodeProvider._extract_error({}), "")
+
     def test_generate_without_server_raises_friendly(self):
         provider = OpenCodeProvider(base_url="http://127.0.0.1:59999", timeout=0.5)
         with self.assertRaises(LLMError):

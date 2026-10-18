@@ -21,6 +21,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
 import urllib.error
 import urllib.request
 from typing import Any, Dict, List, Optional
@@ -115,8 +116,29 @@ class OpenCodeProvider(LLMProvider):
         data = self._request("POST", f"/session/{session_id}/message", body)
         text = self._extract_text(data)
         if not text:
-            raise LLMError("opencode 返回内容为空（检查 model 是否已连接/可用）")
+            error = self._extract_error(data)
+            raise LLMError(error or "opencode 返回内容为空（检查 model 是否已连接/可用）")
         return text
+
+    @staticmethod
+    def _extract_error(data: Any) -> str:
+        """Surface an upstream error instead of a bare 'empty response'."""
+        if not isinstance(data, dict):
+            return ""
+        info = data.get("info") if isinstance(data.get("info"), dict) else data
+        error = info.get("error") if isinstance(info, dict) else None
+        if not isinstance(error, dict):
+            return ""
+        payload = error.get("data") if isinstance(error.get("data"), dict) else error
+        message = str(payload.get("message") or error.get("message") or "").strip()
+        if not message:
+            return ""
+        code = payload.get("code") or ""
+        if not code and isinstance(payload.get("responseBody"), str):
+            found = re.search(r'"code"\s*:\s*"([^"]+)"', payload["responseBody"])
+            code = found.group(1) if found else ""
+        code = code or error.get("name") or ""
+        return f"opencode 上游错误{f'（{code}）' if code else ''}：{message}"
 
     @staticmethod
     def _extract_text(data: Any) -> str:

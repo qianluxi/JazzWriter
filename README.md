@@ -410,6 +410,7 @@ python -m unittest discover -s tests     # 170 项：确定性 / 记录 / 连续
 
 | 版本 | 内容 |
 | --- | --- |
+| **v2.29.1** | opencode provider 现在会**透出上游错误原文**（如 `api_key_expired` / `Insufficient account funds`），不再只报"返回内容为空"，便于定位凭证问题 |
 | **v2.29** | 默认设置改为**真实模型优先**：JazzWriter 默认 **`opencode` + `embedding` 评价**，World Studio 默认 **`opencode`**（`mock` 保留为离线备选）· opencode 默认模型指向 **`opencode-go/deepseek-v4.1-flash`**（可用 `NJE_OPENCODE_MODEL` 覆盖，`opencode models opencode-go` 可查）· 更新 opencode API key 后无需改本项目，重登 `opencode` 并重启 `opencode serve` 即可 |
 | **v2.28** | 补齐"设定条目"操作：CLI 新增 **`lock`/`--off`** 与 **`show --entries`**（列出 `[状态] id｜类别｜名称＋锁定`）· 引导与命令表同步 |
 | **v2.27.1** | 修复"只看到 4"的困惑：原型**五个维度**改为**显式展示**（GUI 选中即看 / CLI 打印 / `world.md`「世界原型」节），并说明原型**默认 4 个**（`--count 3–6`）；补充对应回归测试 |
