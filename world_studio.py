@@ -18,6 +18,7 @@ from typing import List, Optional
 
 from world.graft import OPS
 from world.idea_forge import DIMENSION_LABELS
+from world.models import KIND_LABELS
 from world.studio import WorldStudio
 
 try:
@@ -192,9 +193,27 @@ def cmd_state(args) -> int:
     return 0
 
 
+def cmd_lock(args) -> int:
+    studio = _load(args)
+    try:
+        studio.lock(args.entity, not args.off)
+    except KeyError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    studio.export()
+    print(f"已{'解锁' if args.off else '锁定'}：{args.entity}")
+    return 0
+
+
 def cmd_show(args) -> int:
     studio = _load(args)
     _print_status(studio)
+    if args.entries:
+        print("\n条目（[状态] id｜类别｜名称＋锁定）：")
+        for entity in studio.doc.entities:
+            lock = " 🔒" if entity.locked else ""
+            kind = KIND_LABELS.get(entity.kind, entity.kind)
+            print(f"  [{entity.state}] {entity.id}｜{kind}｜{entity.name}{lock}")
     print(f"\n预览：{studio.md_path}")
     return 0
 
@@ -282,7 +301,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("show", help="查看世界观状态")
     p.add_argument("slug")
+    p.add_argument("--entries", action="store_true", help="同时列出全部设定条目（id/状态/锁定）")
     p.set_defaults(func=cmd_show)
+
+    p = sub.add_parser("lock", help="锁定/解锁条目（锁定后再次生长不被覆盖）")
+    p.add_argument("slug")
+    p.add_argument("entity")
+    p.add_argument("--off", action="store_true", help="改为解锁")
+    p.set_defaults(func=cmd_lock)
 
     p = sub.add_parser("list", help="列出本地世界观")
     p.set_defaults(func=cmd_list)

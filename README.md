@@ -1,4 +1,4 @@
-# JazzWriter（小说爵士引擎）`v2.27.1`
+# JazzWriter（小说爵士引擎）`v2.28`
 
 > **长篇小说结构即兴引擎 / Human-AI Improvisational Writing System。**
 > 主要产物不是小说正文，而是**故事方案、全书梗概、分卷结构、逐章摘要卡片，以及人物与关系网络**。
@@ -162,7 +162,9 @@ python world_studio.py graft a.txt --op 世界交叉 --seed "…" --second b.txt
 python world_studio.py check <slug>                        # 一致性提示（含依据/把握度/离线声明）
 python world_studio.py edit <slug> rule-1 --statement "…" [--yes]   # 编辑条目（锁定/已确认需 --yes）
 python world_studio.py impact <slug> rule-1                # 修改该条目会牵连哪些设定
+python world_studio.py show <slug> --entries                     # 列出全部条目（[状态] id｜类别｜名称＋锁定）
 python world_studio.py state <slug> consequence-1 confirmed  # 设置条目状态
+python world_studio.py lock <slug> rule-1 [--off]            # 锁定/解锁条目
 python world_studio.py show <slug> / list                  # 状态 / 列表
 python world_studio_gui.py                                 # 独立图形界面（发散即存 / 打开恢复 / 改状态 / 锁定）
 ```
@@ -400,6 +402,7 @@ python -m unittest discover -s tests     # 170 项：确定性 / 记录 / 连续
 
 | 版本 | 内容 |
 | --- | --- |
+| **v2.28** | 补齐"设定条目"操作：CLI 新增 **`lock`/`--off`** 与 **`show --entries`**（列出 `[状态] id｜类别｜名称＋锁定`）· 引导与命令表同步 |
 | **v2.27.1** | 修复"只看到 4"的困惑：原型**五个维度**改为**显式展示**（GUI 选中即看 / CLI 打印 / `world.md`「世界原型」节），并说明原型**默认 4 个**（`--count 3–6`）；补充对应回归测试 |
 | **v2.27** | World Studio 深化（专家三轮）：**结构化条目编辑**（改名称/内容/依据/状态，保留 id/来源/依赖；锁定或已确认需确认；改核心规则列出需复核的下游候选）· **嫁接计划进入模型提示并做生成后校验**（不满足则回退离线，不再只追加说明）· `反转前提`给出**多个具体反命题候选** · 规则属性**显式语义规则**（否定/范围/未知，修正"不会被看见""并不稀缺"等误判）· 离线生长引入**可组合机制模块**（不同规则形成不同结构）· 模型 JSON 校验加严（**最低类别覆盖 / id 唯一 / 依赖类型与引用 / 无环**）· **原子写入 + `.bak` 备份**；GUI 锁定后即时刷新预览 |
 | **v2.26.1** | 修复 `WorldStudio.bat` 在非 UTF-8 控制台下中文提示乱码（启动器改为纯 ASCII 提示） |
