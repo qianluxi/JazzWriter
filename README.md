@@ -1,4 +1,4 @@
-# JazzWriter（小说爵士引擎）`v2.23`
+# JazzWriter（小说爵士引擎）`v2.24`
 
 > **长篇小说结构即兴引擎 / Human-AI Improvisational Writing System。**
 > 主要产物不是小说正文，而是**故事方案、全书梗概、分卷结构、逐章摘要卡片，以及人物与关系网络**。
@@ -136,21 +136,25 @@ python main.py book --from-plan --pov 林 --no-save
 
 一条可观察、可保存的创意工作流：**只言片语 → 发散多个底层逻辑不同的世界原型 → 选择 → 逐层生长 → 一致性提示 → 导出 `world.md`**。
 
-- **灵感种子（spark）**：一句话即可开始。系统用「认知 / 制度 / 存在论 / 经济 / 信仰 / 物理」六种**底层逻辑**重新解释同一片语，产出 3–5 个真正不同的原型（而非只改地名），并给出「差异度」。
-- **逐层生长**：选定原型后，从**核心规则**推导 社会后果 · 知识与认知 · 制度与权力 · 历史动力 · 地理与空间 · 冲突与人物 · 意象与母题；核心规则标为「已确认」，其余为「候选」。
-- **设定嫁接（graft）**：导入已有世界观文档，先抽取**抽象骨架**（规则 / 主题 / 权力 / 历史 / 美学），再选一种变形操作：`深度变形 / 主题移植 / 世界交叉 / 边缘扩展 / 反转前提`；结果标注**继承 / 改变 / 冲突**与来源，避免"换名字重写一遍"。
-- **状态区分**：`confirmed（已确认）/ candidate（候选）/ open（未决）/ contradiction（有意保留的矛盾）`——模型不会把猜想当成已定事实。
-- **一致性检查只提示、不自动修正**：冲突以 `⚠` 提示，有意保留的矛盾单独列出（神秘、宗教、不可靠叙述可以来自这里）。
+- **灵感种子（spark）**：一句话即可开始。系统用「认知 / 制度 / 存在论 / 经济 / 信仰 / 物理」六种**底层逻辑**重新解释同一片语，产出 3–5 个真正不同的原型。**差异度按世界机制（规则/权力/知识/困境/时间五个维度）计算**，并会标出"标签不同但机制重复"的原型，而不是只看文字相似度。
+- **逐层生长（由规则推导，非套模板）**：先由核心规则推出**结构属性**（可观测性 / 稀缺性 / 执行方式 / 代价 / 可变性），再由属性推导演绎出 社会后果 · 知识与认知 · 制度与权力 · 历史动力 · 地理与空间 · 冲突与人物 · 意象与母题。每条都带**依据**（由哪个属性推导），不同规则会生长出结构不同的世界；核心规则标「已确认」，其余为「候选」。
+- **依赖溯源**：条目保留 `depends_on` 依赖关系，可反查"若修改某条规则，会牵连哪些候选设定"（CLI/GUI 均可查看）。
+- **设定嫁接（graft）**：导入已有世界观文档，抽取**抽象骨架**（规则 / 主题 / 权力 / 历史 / 美学），再选一种变形操作：`深度变形 / 主题移植 / 世界交叉 / 边缘扩展 / 反转前提`。每次操作输出**结构化的继承 / 删除 / 修改 / 新增 + 下游影响 + 冲突**，新增规则一律标为「候选」交由作者审阅。
+- **状态区分**：`confirmed（已确认）/ candidate（候选）/ open（未决）/ contradiction（有意保留的矛盾）`——模型不会把猜想当成已定事实；可逐条切换状态与锁定。
+- **一致性检查只提示、不自动修正**：合并同类重复、**跨类别**疑似冲突（带**依据**与**把握度**）、依赖影响与有意保留的矛盾；可选用真实模型做语义审阅（其结果明确标注"需人工确认"）。启发式会漏报/误报，故一律只提示，裁决权在作者。
 - **产出**：`worlds/<slug>/world.md`（结构化世界观文档）+ `world.json`（机器可读）。
-- **模型**：可选 `--provider opencode|openai`；默认离线 `mock` 用确定性模板生成可读骨架（标注 `offline_template`），接入真实模型后同一工作流质量更高。
+- **模型**：可选 `--provider opencode|openai`；默认离线 `mock` 用确定性推导给出可读骨架（标注 `offline_template`）。
 
 ```powershell
 python world_studio.py spark "每个人死后都会留下一段从未说出口的记忆，但只有建筑能听见"
 python world_studio.py spark "…" --pick 制度世界           # 选择原型 → 生长 → 导出 world.md
 python world_studio.py graft notes/world.txt --op 反转前提 --seed "一个没有夜晚的城市"
 python world_studio.py grow <slug>                         # 生长并导出
-python world_studio.py check <slug> / show <slug> / list   # 提示 / 状态 / 列表
-python world_studio_gui.py                                 # 独立图形界面
+python world_studio.py check <slug>                        # 一致性提示（含依据/把握度）
+python world_studio.py impact <slug> rule-1                # 修改该条目会牵连哪些设定
+python world_studio.py state <slug> consequence-1 confirmed  # 设置条目状态
+python world_studio.py show <slug> / list                  # 状态 / 列表
+python world_studio_gui.py                                 # 独立图形界面（发散即存 / 打开 / 改状态 / 锁定）
 ```
 
 ---
@@ -352,10 +356,11 @@ feedback/       theme_check / character_check / novelty_check / conductor
 jam_session/    director / soloist / observer / editor / orchestrator
 llm/            base / mock / openai_provider / opencode_provider
 session.py  store.py  cli.py  gui.py  main.py
-world/          World Studio：idea_forge(发散) · expander(逐层生长) · graft(嫁接)
-                checker(一致性提示) · emit(导出 Markdown) · studio(编排) · models · util
+world/          World Studio：idea_forge(发散+机制度量) · expander(按规则属性推导)
+                graft(嫁接/结构化差异) · graph(依赖溯源) · checker(一致性提示)
+                emit(导出 Markdown) · studio(编排) · models · util
 world_studio.py  world_studio_gui.py   世界观工坊的独立入口（CLI / GUI）
-tests/          回归测试（151 项）
+tests/          回归测试（154 项）
 projects/       独立小说的乐谱与稿子（示例见 projects/border2020/；产出随各项目目录保存）
 worlds/         独立的世界观项目（World Studio 产物，本地保存，不入库）
 ```
@@ -376,7 +381,7 @@ worlds/         独立的世界观项目（World Studio 产物，本地保存，
 ## 测试
 
 ```powershell
-python -m unittest discover -s tests     # 151 项：确定性 / 记录 / 连续性 / 约束注入 / 结构校验 / 人物关系 / 反馈边界 / 向量记忆 / Jam / 项目隔离 / 事实冲突审阅 / 世界观工坊
+python -m unittest discover -s tests     # 154 项：确定性 / 记录 / 连续性 / 约束注入 / 结构校验 / 人物关系 / 反馈边界 / 向量记忆 / Jam / 项目隔离 / 事实冲突审阅 / 世界观工坊
 ```
 
 ---
@@ -385,6 +390,7 @@ python -m unittest discover -s tests     # 151 项：确定性 / 记录 / 连续
 
 | 版本 | 内容 |
 | --- | --- |
+| **v2.24** | World Studio 可靠性提升（专家评审 P1）：**原型差异度改为按世界机制五维度量**并标记"标签不同但机制重复"· **生长改为由规则属性**（可观测性/稀缺性/执行/代价/可变性）**推导**而非固定模板 · 新增**依赖图**（`impact` 反查受影响条目）· 一致性检查**跨类别 + 输出依据与把握度 + 可选模型语义审阅** · 嫁接输出**结构化差异**（继承/删除/修改/新增/下游影响）· GUI 支持**发散即存、打开已有、改状态与锁定** |
 | **v2.23** | 新模块 **World Studio（世界观工坊）**：独立入口 `world_studio.py` / `world_studio_gui.py`，独立数据目录 `worlds/`。**灵感种子**（一句话发散多个底层逻辑不同的世界原型）+ **设定嫁接**（抽取骨架 → 深度变形/主题移植/世界交叉/边缘扩展/反转前提）；状态区分与只提示不修正的一致性检查；产出结构化 `world.md` |
 | **v2.22** | 并入专家 P1 补丁的加固：项目校验收紧为 `projects/` **直系子目录** + 符号链接解析；预览路径合法性校验；**本地有未推送提交 / 无 origin upstream 时自动发布中止**（避免连带公开） |
 | **v2.21** | 安全修复：`project delete/regen` 仅限 `projects/` 内真实项目（防越界删改）· 预览自动提交**只含 `docs/preview` 目标文件**，不牵连其它已暂存改动 |

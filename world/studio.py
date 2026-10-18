@@ -18,8 +18,9 @@ from store import ROOT
 from world.checker import WorldChecker
 from world.expander import WorldExpander
 from world.graft import GraftEngine, Skeleton
+from world.graph import DependencyGraph
 from world.idea_forge import IdeaForge
-from world.models import WorldDoc, WorldIdea
+from world.models import STATES, WorldDoc, WorldIdea
 from world import emit
 from world.util import slugify
 
@@ -107,13 +108,30 @@ class WorldStudio:
         return self.expander.expand(self.doc)
 
     def check(self):
-        return self.checker.check(self.doc)
+        return self.checker.check(self.doc, self.llm)
 
-    def lock(self, ref: str) -> None:
+    def impact(self, entity_id: str) -> dict:
+        return DependencyGraph(self.doc).impact_report(entity_id)
+
+    def duplicate_warnings(self) -> List[str]:
+        return self.forge.duplicate_warnings(self.doc.ideas)
+
+    def set_state(self, ref: str, state: str) -> WorldEntity:
+        if state not in STATES:
+            raise ValueError(f"unknown state: {state}（可用：{', '.join(STATES)}）")
         entity = self.doc.by_id(ref)
         if entity is None:
             raise KeyError(f"unknown entity: {ref}")
-        self.doc.lock(ref)
+        entity.state = state
+        if state != "confirmed":
+            entity.locked = False
+        return entity
+
+    def lock(self, ref: str, locked: bool = True) -> None:
+        entity = self.doc.by_id(ref)
+        if entity is None:
+            raise KeyError(f"unknown entity: {ref}")
+        self.doc.lock(ref, locked)
 
     # -- graft mode ---------------------------------------------------------
     def graft(

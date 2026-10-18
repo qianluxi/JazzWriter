@@ -27,9 +27,12 @@ except Exception:
 
 def _print_ideas(studio: WorldStudio) -> None:
     for i, idea in enumerate(studio.doc.ideas, start=1):
-        print(f"[{i}] {idea.label}｜{idea.lens}｜差异度 {idea.distinctness}")
+        dup = f" ⚠与{idea.near_duplicate}机制重复" if idea.near_duplicate else ""
+        print(f"[{i}] {idea.label}｜{idea.lens}｜差异度 {idea.distinctness}{dup}")
         print(f"    一句话：{idea.logline}")
         print(f"    核心规则：{idea.core_rule}")
+        if idea.differentiators:
+            print(f"    独特维度：{'、'.join(idea.differentiators)}")
         print()
 
 
@@ -47,6 +50,12 @@ def cmd_spark(args) -> int:
     ideas = studio.raise_ideas(count=args.count)
     print(f"种子：{args.seed}\n")
     _print_ideas(studio)
+    warnings = studio.duplicate_warnings()
+    if warnings:
+        print("⚠ 机制重复提示（标签不同但结构相似）：")
+        for warning in warnings:
+            print(f"  - {warning}")
+        print()
     if args.pick:
         idea = studio.choose(args.pick)
         print(f"已选择：{idea.label}\n")
@@ -82,11 +91,14 @@ def cmd_graft(args) -> int:
         second_text=second_text,
     )
     _print_status(studio)
-    skipped = [n for n in studio.doc.provenance if n]
-    if skipped:
+    diff = studio.doc.graft_diff
+    if diff:
         print("\n变形记录：")
-        for note in skipped:
-            print(f"  - {note}")
+        labels = {"inherit": "继承", "remove": "删除", "modify": "修改",
+                  "add": "新增", "downstream": "下游影响"}
+        for key in ("inherit", "remove", "modify", "add", "downstream"):
+            if diff.get(key):
+                print(f"  - {labels[key]}：{'；'.join(diff[key])}")
     path = studio.export()
     print(f"\n已生成 Markdown：{path}")
     return 0
@@ -112,7 +124,30 @@ def cmd_check(args) -> int:
     for issue in issues:
         tag = "⚠" if issue["level"] == "warn" else "·"
         ids = ",".join(issue.get("ids", []))
-        print(f"{tag} [{ids}] {issue['message']}")
+        basis = f"（依据：{issue.get('basis')}；把握：{issue.get('confidence')}）"
+        print(f"{tag} [{ids}] {issue['message']}{basis}")
+    return 0
+
+
+def cmd_impact(args) -> int:
+    studio = _load(args)
+    report = studio.impact(args.entity)
+    if not report["transitive"]:
+        print(f"「{report['name']}」目前没有下游依赖条目。")
+        return 0
+    print(f"若修改「{report['name']}」，将牵连：")
+    for name in report["transitive"]:
+        print(f"  - {name}")
+    if report["candidates"]:
+        print("其中候选（需复核）：" + "、".join(report["candidates"]))
+    return 0
+
+
+def cmd_state(args) -> int:
+    studio = _load(args)
+    entity = studio.set_state(args.entity, args.state)
+    studio.save()
+    print(f"{entity.id} → {entity.state}（已保存）")
     return 0
 
 
@@ -176,6 +211,17 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("check", help="一致性提示（只报告，不修正）")
     p.add_argument("slug")
     p.set_defaults(func=cmd_check)
+
+    p = sub.add_parser("impact", help="列出修改某条目会牵连的下游设定")
+    p.add_argument("slug")
+    p.add_argument("entity")
+    p.set_defaults(func=cmd_impact)
+
+    p = sub.add_parser("state", help="设置条目状态（confirmed/candidate/open/contradiction）")
+    p.add_argument("slug")
+    p.add_argument("entity")
+    p.add_argument("state")
+    p.set_defaults(func=cmd_state)
 
     p = sub.add_parser("show", help="查看世界观状态")
     p.add_argument("slug")

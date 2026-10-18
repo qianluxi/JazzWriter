@@ -106,7 +106,7 @@ def build() -> Document:
     _cjk(srun.font)
     ver = doc.add_paragraph()
     ver.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    vrun = ver.add_run("适用版本 v2.23　·　Novel Jazz Engine")
+    vrun = ver.add_run("适用版本 v2.24　·　Novel Jazz Engine")
     vrun.font.size = Pt(11)
     vrun.font.color.rgb = RGBColor.from_string("999999")
     _cjk(vrun.font)
@@ -354,14 +354,17 @@ def build() -> Document:
     p(doc, "注意：嫁接以抽象规则与主题为材料，不复制原作的文字、人物与独特表达；"
            "新世界在“来源与变形”一节写清从哪里来、做了什么改变。")
 
-    h2(doc, "设定状态与一致性")
+    h2(doc, "设定状态、依赖与一致性")
     bullets(doc, [
-        "状态区分：已确认 confirmed / 候选 candidate / 未决 open / 有意保留的矛盾 contradiction。",
-        "一致性提示只报告、不自动修正：冲突以 ⚠ 标出，有意保留的矛盾单独列出（神秘、宗教、"
-        "不可靠叙述可以来自这里）。",
+        "状态区分：已确认 confirmed / 候选 candidate / 未决 open / 有意保留的矛盾 contradiction；"
+        "可在 GUI 里选中条目切换状态或锁定，也可用 CLI：world_studio.py state <slug> <条目> <状态>。",
+        "依赖溯源：条目保留依赖关系，可反查“若修改某条规则，会牵连哪些候选设定”："
+        "python world_studio.py impact <slug> rule-1。",
+        "一致性提示只报告、不自动修正：合并同类重复、跨类别疑似冲突（附依据与把握度）、"
+        "依赖影响与有意保留的矛盾；接入真实模型时可加做语义审阅（明确标注“需人工确认”）。",
         "命令行：python world_studio.py spark \"…\" [--pick 名称] / graft <文件> --op 反转前提 / "
-        "grow <slug> / check <slug> / list。",
-        "模型：--provider opencode|openai；默认离线 mock 用确定性模板给出可读骨架（标注 offline_template）。",
+        "grow <slug> / check <slug> / impact <slug> <条目> / state <slug> <条目> <状态> / list。",
+        "模型：--provider opencode|openai；默认离线 mock 用确定性推导给出可读骨架（标注 offline_template）。",
     ])
 
     # -- 9 ----------------------------------------------------------------

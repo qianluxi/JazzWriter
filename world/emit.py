@@ -6,12 +6,21 @@ from pathlib import Path
 from typing import List
 
 from world.checker import WorldChecker
+from world.graph import DependencyGraph
 from world.models import KIND_LABELS, WorldDoc
 
 _SECTION_ORDER = (
     "consequence", "knowledge", "institution", "history",
     "geography", "conflict", "motif",
 )
+_PROP_LABELS = {
+    "observability": "可观测性", "scarcity": "稀缺性", "enforcement": "执行方式",
+    "cost": "代价", "mutability": "可变性",
+}
+_DIFF_LABELS = {
+    "inherit": "继承", "remove": "删除", "modify": "修改",
+    "add": "新增", "downstream": "下游影响",
+}
 
 
 def build_markdown(doc: WorldDoc) -> str:
@@ -36,9 +45,18 @@ def build_markdown(doc: WorldDoc) -> str:
     lines.append("")
     for entity in doc.of_kind("rule"):
         lines.append(f"- {entity.label()}：{entity.statement}")
+        if entity.basis:
+            lines.append(f"  - 依据：{entity.basis}")
         if entity.locked:
-            lines.append("  - 🔒 已锁定")
+            lines.append("  - 已锁定")
     lines.append("")
+
+    if doc.rule_properties:
+        lines.append("## 规则属性（推导起点）")
+        lines.append("")
+        for key, value in doc.rule_properties.items():
+            lines.append(f"- {_PROP_LABELS.get(key, key)}：{value}")
+        lines.append("")
 
     for kind in _SECTION_ORDER:
         group = doc.of_kind(kind)
@@ -48,6 +66,8 @@ def build_markdown(doc: WorldDoc) -> str:
         lines.append("")
         for entity in group:
             lines.append(f"- {entity.label()}：{entity.statement}")
+            if entity.basis:
+                lines.append(f"  - 依据：{entity.basis}")
         lines.append("")
 
     if doc.open_questions:
@@ -64,13 +84,33 @@ def build_markdown(doc: WorldDoc) -> str:
             lines.append(f"- {c}")
         lines.append("")
 
-    issues = WorldChecker().check(doc)
+    graph = DependencyGraph(doc)
+    rule_impacts = [r for r in (graph.impact_report(e.id) for e in doc.of_kind("rule"))
+                    if r["transitive"]]
+    if rule_impacts:
+        lines.append("## 规则依赖与影响")
+        lines.append("")
+        for report in rule_impacts:
+            lines.append(f"- 若修改「{report['name']}」，受影响：{'、'.join(report['transitive'])}")
+        lines.append("")
+
+    issues = [i for i in WorldChecker().check(doc) if not str(i.get("basis", "")).startswith("依赖图")]
     if issues:
         lines.append("## 一致性提示")
         lines.append("")
         for issue in issues:
             tag = "⚠" if issue["level"] == "warn" else "·"
-            lines.append(f"- {tag} {issue['message']}")
+            basis = f"（依据：{issue['basis']}；把握：{issue['confidence']}）" if issue.get("basis") else ""
+            lines.append(f"- {tag} {issue['message']}{basis}")
+        lines.append("")
+
+    if doc.graft_diff:
+        lines.append("## 嫁接变形记录")
+        lines.append("")
+        for key in ("inherit", "remove", "modify", "add", "downstream"):
+            values = doc.graft_diff.get(key)
+            if values:
+                lines.append(f"- **{_DIFF_LABELS.get(key, key)}**：{'；'.join(values)}")
         lines.append("")
 
     if doc.provenance:

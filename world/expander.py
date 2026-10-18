@@ -1,8 +1,11 @@
 """World Expander: grow one chosen prototype into a layered worldview.
 
-It never rewrites the core rule. It derives consequence / knowledge /
-institution / history / geography / conflict / motif layers *from* that rule,
-so the world stays internally motivated instead of turning into a list of tropes.
+Offline growth is a **derivation**, not a template lookup. From the core rule we
+first infer its properties (observability, scarcity, enforcement mode, cost,
+mutability), then derive consequences / knowledge / institution / history /
+geography / conflict *from those properties*. Different rules therefore produce
+structurally different worlds. Every derived entry keeps a ``basis`` naming the
+property it came from, so the chain stays traceable.
 """
 
 from __future__ import annotations
@@ -13,39 +16,11 @@ from engine.planning_llm import generate_json
 from world.models import WorldDoc, WorldEntity
 from world.util import clauses, terms
 
-_LAYERS: List[Tuple[str, List[str]]] = [
-    ("consequence", [
-        "「{R}」成为日常默认前提：人们规划人生时必须先绕开或利用它。",
-        "围绕它的灰色地带催生了新的行当：中间人、鉴定者、赎买者。",
-        "违反它的代价被公开示范，成为最有效的社会教育。",
-    ]),
-    ("knowledge", [
-        "关于「{R}」的真相被少数机构垄断，普通人只掌握被整理过的版本。",
-        "存在一批天生“感知不到”的人，他们的证词在制度中不被采信。",
-    ]),
-    ("institution", [
-        "出现专门解释与执行「{R}」的机构，与旧权力持续争夺管辖边界。",
-        "围绕它形成新的身份登记制度：谁被纳入、谁被排除在外。",
-    ]),
-    ("history", [
-        "一场旧灾变让「{R}」第一次进入公共视野，此后所有分岔都由此而来。",
-        "上一代人曾试图废除它，失败后反而把它写进了根本法。",
-    ]),
-    ("geography", [
-        "空间按与「{R}」的距离分层：越靠近越受管控，越边缘越失控。",
-        "出现只有在此处才成立的特区，与外界规则长期摩擦。",
-    ]),
-    ("conflict", [
-        "主角因「{R}」获得优势，也因此必须向最亲近的人隐瞒它。",
-        "两股势力都想独占对「{R}」的解释权，其中一方宁愿毁掉它。",
-    ]),
-]
-
-_QUESTIONS = [
-    "「{R}」是能被测量的，还是只能被经验？",
-    "违背它的人会怎样？谁有权判定与执行？",
-    "谁最先发现了它，那个人后来发生了什么？",
-]
+_OBSERVABILITY_KW = ("听见", "看见", "感知", "显形", "洞察", "读数", "测量")
+_SCARCITY_KW = ("只有", "唯一", "稀缺", "垄断", "独占", "少数")
+_CODIFIED_KW = ("法律", "禁止", "必须", "不得", "判例", "成文", "条例", "执法", "裁决", "判决")
+_COSTLY_KW = ("代价", "付出", "耗费", "牺牲", "损耗", "风险")
+_MUTABLE_KW = ("漂移", "变化", "改写", "重估", "修订", "更替")
 
 
 class WorldExpander:
@@ -56,9 +31,11 @@ class WorldExpander:
         idea = doc.chosen_idea
         rule = idea.core_rule if idea else (doc.seed or "一条尚未命名的世界规则")
         self._ensure_rule(doc, rule)
-        picked = self._from_llm(doc, rule)
+        props = rule_properties(doc.seed, rule)
+        doc.rule_properties = props
+        picked = self._from_llm(doc, rule, props)
         if picked is None:
-            picked = self._from_templates(doc, rule)
+            picked = self._derive(doc, rule, props)
         entities, questions = picked
         for entity in entities:
             if not doc.by_id(entity.id):
@@ -74,46 +51,70 @@ class WorldExpander:
             return
         doc.add(WorldEntity(
             id="rule-1", kind="rule", name="核心规则", statement=rule,
-            state="confirmed", source="chosen idea",
+            state="confirmed", source="chosen idea", basis="作者选定",
         ))
 
-    def _from_templates(self, doc: WorldDoc, rule: str) -> Tuple[List[WorldEntity], List[str]]:
+    # -- deterministic derivation -------------------------------------------
+    def _derive(self, doc: WorldDoc, rule: str, props: Dict[str, str]) -> Tuple[List[WorldEntity], List[str]]:
         ref = _short_ref(doc.seed, rule)
-        R = ref
-        words = [w for w in (terms(doc.seed, limit=5) or ["沉默"]) if w != ref][:3] or ["沉默"]
+        obs, scarce, enf = props["observability"], props["scarcity"], props["enforcement"]
+        cost, mutable = props["cost"], props["mutability"]
+        spec = [
+            ("consequence", "证据经济", f"「{ref}」可观测性{obs}，绝大多数判断只能依赖间接证据，"
+                                    "催生了以转述、鉴证与伪证为生的行当。", f"由可观测性={obs} 推导"),
+            ("consequence", "接近权", f"由于「{ref}」{scarce}，对它的接近权本身成为可争夺、"
+                                  "可继承、可抵押的资产。", f"由稀缺性={scarce} 推导"),
+            ("knowledge", "知识分层", f"可观测性{obs}决定知识分层：能直接接触「{ref}」者掌握第一手信息，"
+                                  "其余人只能接受被整理过的版本。", f"由可观测性={obs} 推导"),
+            ("knowledge", "事实漂移", f"由于「{ref}」{mutable}，一代人确认的“事实”"
+                                  "到下一代可能已被重新解释。", f"由可变性={mutable} 推导"),
+            ("institution", "裁决机构", f"围绕「{ref}」出现以{enf}方式运作的裁决机构，"
+                                    "负责裁定何为有效接触与有效证据。", f"由执行方式={enf} 推导"),
+            ("institution", "准入制度", f"「{ref}」{scarce}使准入资格成为制度核心："
+                                    "登记、配额与继承规则由此而来。", f"由稀缺性={scarce} 推导"),
+            ("history", "边界移动", f"历史由观测条件的变化驱动：每当可观测性={obs}的边界移动，"
+                                 "就出现一次全面重估与冲突。", f"由可观测性={obs} 推导"),
+            ("history", "周期清算", f"由于「{ref}」{mutable}，每一次官方解释都被后来的代际"
+                                 "当作压迫或启示，历史因此周期性地被清算。", f"由可变性={mutable} 推导"),
+            ("geography", "成本梯度", f"接近成本{cost}，人口与产业沿成本梯度分布，"
+                                  "形成中心—边缘的空间结构。", f"由代价={cost} 推导"),
+            ("geography", "管控分层", f"「{ref}」{scarce}且以{enf}方式执行，使管控按距离分层："
+                                  "越接近源头越受规制，边缘则被放任。", f"由稀缺性+执行方式 推导"),
+            ("conflict", "零和解释权", f"由于「{ref}」{scarce}，解释权是零和的："
+                                    "一方获益必然意味着另一方失去接近的可能。", f"由稀缺性={scarce} 推导"),
+            ("conflict", "真假之争", f"可观测性{obs}制造了天然的骗子与真先知，"
+                                  "二者的证词无法区分，冲突因此不可调和。", f"由可观测性={obs} 推导"),
+        ]
         entities: List[WorldEntity] = []
-        for kind, statements in _LAYERS:
-            for j, tmpl in enumerate(statements):
-                entities.append(WorldEntity(
-                    kind=kind,
-                    id=f"{kind}-{j + 1}",
-                    name=f"{_name_of(kind)}{j + 1}",
-                    statement=tmpl.format(R=R),
-                    state="candidate",
-                    source="derived",
-                    depends_on=["rule-1"],
-                ))
-        for j, word in enumerate(words[:3]):
+        counters: Dict[str, int] = {}
+        for kind, name, statement, basis in spec:
+            counters[kind] = counters.get(kind, 0) + 1
             entities.append(WorldEntity(
-                kind="motif",
-                id=f"motif-{j + 1}",
-                name=f"意象：{word}",
-                statement=f"「{word}」反复出现，每次出现都标记「{R}」的边界在移动。",
-                state="candidate",
-                source="derived",
-                depends_on=["rule-1"],
+                kind=kind, id=f"{kind}-{counters[kind]}", name=name, statement=statement,
+                state="candidate", source="derived", basis=basis, depends_on=["rule-1"],
             ))
-        questions = [q.format(R=R) for q in _QUESTIONS]
+        words = [w for w in (terms(doc.seed, limit=5) or ["沉默"]) if w != ref][:3] or ["沉默"]
+        for j, word in enumerate(words, start=1):
+            entities.append(WorldEntity(
+                kind="motif", id=f"motif-{j}", name=f"意象：{word}",
+                statement=f"「{word}」反复出现，每次出现都标记「{ref}」可观测性边界的移动。",
+                state="candidate", source="derived", basis="由片语意象提取", depends_on=["rule-1"],
+            ))
+        questions = [
+            f"「{ref}」是可测量的，还是只能被经验？",
+            f"违背「{ref}」的代价由谁承担、如何判定？",
+            f"谁最先发现了「{ref}」，那个人后来发生了什么？",
+        ]
         return entities, questions
 
-    def _from_llm(self, doc: WorldDoc, rule: str):
+    def _from_llm(self, doc: WorldDoc, rule: str, props: Dict[str, str]):
         prompt = (
-            "根据核心规则，逐层生长出一个自洽的世界。\n"
+            "根据核心规则及其属性，逐层推导出一个自洽的世界。\n"
             f"核心规则：{rule}\n"
+            f"规则属性：{props}\n"
             f"原始片语：{doc.seed}\n"
-            "分层：社会后果 consequence、知识与认知 knowledge、制度与权力 institution、"
-            "历史动力 history、地理与空间 geography、冲突与人物 conflict、意象与母题 motif。\n"
-            '只输出 JSON：{"entities":[{"kind":"consequence","name":"","statement":""}],'
+            "先由属性推导后果，再由后果推导制度、历史、地理与冲突；每条都要给出依据。\n"
+            '只输出 JSON：{"entities":[{"kind":"consequence","name":"","statement":"","basis":""}],'
             '"open_questions":[""]}'
         )
         data = generate_json(self.llm, prompt, max_tokens=2500)
@@ -127,18 +128,35 @@ class WorldExpander:
             kind = str(item.get("kind") or "consequence")
             counters[kind] = counters.get(kind, 0) + 1
             entities.append(WorldEntity(
-                kind=kind,
-                id=f"{kind}-{counters[kind]}",
-                name=str(item.get("name") or _name_of(kind)),
-                statement=str(item.get("statement") or ""),
-                state="candidate",
-                source="derived",
-                depends_on=["rule-1"],
+                kind=kind, id=f"{kind}-{counters[kind]}",
+                name=str(item.get("name") or kind), statement=str(item.get("statement") or ""),
+                state="candidate", source="derived",
+                basis=str(item.get("basis") or ""), depends_on=["rule-1"],
             ))
         questions = [str(q) for q in data.get("open_questions", []) if str(q).strip()]
         if not entities:
             return None
-        return entities, questions or [q.format(R=_short_ref(doc.seed, rule)) for q in _QUESTIONS]
+        return entities, questions
+
+
+def rule_properties(seed: str, rule: str) -> Dict[str, str]:
+    """Infer the rule's structural properties from its wording (offline heuristics).
+
+    The chosen rule drives the inference (the seed is only a fallback), so two
+    different rules on the same seed yield different worlds.
+    """
+    text = (rule or seed or "").strip()
+
+    def has(*kws: str) -> bool:
+        return any(k in text for k in kws)
+
+    return {
+        "observability": "低" if has(*_OBSERVABILITY_KW) else "高",
+        "scarcity": "稀缺" if has(*_SCARCITY_KW) else "充足",
+        "enforcement": "成文法" if has(*_CODIFIED_KW) else "习惯法",
+        "cost": "高昂" if has(*_COSTLY_KW) else "可承受",
+        "mutability": "会漂移" if has(*_MUTABLE_KW) else "被视为不可变",
+    }
 
 
 def _short_ref(seed: str, rule: str) -> str:
@@ -146,9 +164,3 @@ def _short_ref(seed: str, rule: str) -> str:
     if parts and 2 <= len(parts[0]) <= 24:
         return parts[0]
     return rule if len(rule) <= 24 else rule[:24]
-
-
-def _name_of(kind: str) -> str:
-    from world.models import KIND_LABELS
-
-    return KIND_LABELS.get(kind, kind)

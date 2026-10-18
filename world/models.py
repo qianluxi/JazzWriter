@@ -45,7 +45,14 @@ STATE_MARKS: Dict[str, str] = {
 
 
 class WorldIdea(Model):
-    """One divergent world prototype raised from the same seed."""
+    """One divergent world prototype raised from the same seed.
+
+    ``dimensions`` records how this prototype answers the same structural
+    questions (rule mechanism / power / knowledge / dilemma / time) so two ideas
+    can be compared by *how the world runs*, not by wording. ``near_duplicate``
+    names another idea id when the two are structurally the same despite
+    different labels.
+    """
 
     id: str = ""
     label: str = ""
@@ -55,6 +62,9 @@ class WorldIdea(Model):
     consequence_seed: str = ""
     distinctness: float = 0.0
     differentiators: List[str] = Field(default_factory=list)
+    dimensions: Dict[str, str] = Field(default_factory=dict)
+    mechanism: str = ""
+    near_duplicate: str = ""
     status: str = "candidate"
 
 
@@ -65,6 +75,7 @@ class WorldEntity(Model):
     statement: str = ""
     state: str = "candidate"
     source: str = "derived"
+    basis: str = ""
     depends_on: List[str] = Field(default_factory=list)
     locked: bool = False
 
@@ -83,6 +94,8 @@ class WorldDoc(Model):
     open_questions: List[str] = Field(default_factory=list)
     contradictions: List[str] = Field(default_factory=list)
     provenance: List[str] = Field(default_factory=list)
+    rule_properties: Dict[str, str] = Field(default_factory=dict)
+    graft_diff: Dict[str, List[str]] = Field(default_factory=dict)
     generation: str = "offline_template"
     created_at: str = ""
 
