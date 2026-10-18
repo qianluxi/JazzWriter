@@ -273,6 +273,11 @@ class GraftTest(unittest.TestCase):
 
 
 class StudioTest(unittest.TestCase):
+    def test_source_label_includes_project_folder(self):
+        from world_studio import _source_label
+        self.assertEqual(_source_label(Path("worlds/界河/world.md")), "界河/world.md")
+        self.assertEqual(_source_label(Path("world.md")), "world.md")
+        self.assertEqual(_source_label(Path("a/world.md"), "自定义来源"), "自定义来源")
     def test_pick_then_grow_closure_survives_reload(self):
         with tempfile.TemporaryDirectory() as tmp:
             studio = WorldStudio.create(SEED, root=Path(tmp), provider="mock")

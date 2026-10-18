@@ -74,6 +74,14 @@ def cmd_spark(args) -> int:
     return 0
 
 
+def _source_label(path: Path, name: Optional[str] = None) -> str:
+    """Identify the source by its project folder too, since files are all world.md."""
+    if name:
+        return name
+    parent = path.parent.name
+    return f"{parent}/{path.name}" if parent else path.name
+
+
 def cmd_graft(args) -> int:
     source = Path(args.source)
     if not source.exists():
@@ -93,7 +101,7 @@ def cmd_graft(args) -> int:
         args.seed or source.stem,
         source.read_text(encoding="utf-8"),
         args.op,
-        source_name=args.name or source.name,
+        source_name=_source_label(source, args.name),
         second_text=second_text,
         root=_root(args),
         provider=args.provider,

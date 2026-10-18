@@ -316,8 +316,8 @@ class WorldStudioApp:
             studio = WorldStudio.graft_new(
                 self.seed_var.get().strip() or Path(path).stem,
                 Path(path).read_text(encoding="utf-8"),
-                op, source_name=Path(path).name, second_text=second_text,
-                provider=self.provider_var.get())
+                op, source_name=f"{Path(path).parent.name}/{Path(path).name}",
+                second_text=second_text, provider=self.provider_var.get())
             studio.export()
             self.studio = studio
         except Exception as exc:
