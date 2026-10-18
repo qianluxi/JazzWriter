@@ -59,11 +59,12 @@ class WorldExpander:
                                    for k, a in analysis.items()}
 
         picked = self._from_llm(doc, rule, analysis, rule_id, plan)
-        if picked is not None and plan and not _plan_satisfied(picked[0], plan):
-            doc.notes.append("模型输出未满足嫁接计划的关键约束，已回退到离线推导。")
-            picked = None
+        if picked is not None and plan:
+            gaps = _plan_gaps(picked[0], plan)
+            if gaps:
+                doc.notes.append("模型输出未完全体现嫁接计划（供作者确认）：" + "；".join(gaps))
         if picked is None:
-            picked = self._derive(doc, rule, analysis, rule_id)
+            picked = self._derive(doc, rule, analysis, rule_id, plan)
         entities, questions = picked
         self._merge(doc, entities)
         for q in questions:
@@ -110,9 +111,13 @@ class WorldExpander:
                 doc.notes.append(str(note))
 
     # -- deterministic derivation with composable modules --------------------
-    def _derive(self, doc: WorldDoc, rule: str, analysis: Dict[str, dict], rule_id: str
+    def _derive(self, doc: WorldDoc, rule: str, analysis: Dict[str, dict], rule_id: str,
+                plan: Optional[dict] = None
                 ) -> Tuple[List[WorldEntity], List[str]]:
-        ref = _short_ref(doc.seed, rule)
+        # Graft keeps a source rule unrelated to the seed: reference the rule's
+        # subject, not the seed, so entries do not talk about the wrong thing.
+        prefer_rule = bool(plan and plan.get("keep"))
+        ref = _subject_ref(rule, doc.seed) if prefer_rule else _short_ref(doc.seed, rule)
         value = {k: a["value"] for k, a in analysis.items()}
         obs, scarce = _disp(value["observability"]), _disp(value["scarcity"])
         enf, cost, mutable = _disp(value["enforcement"]), _disp(value["cost"]), _disp(value["mutability"])
@@ -290,15 +295,18 @@ def _break_cycles(entities: List[WorldEntity], doc: WorldDoc) -> None:
             doc.notes.append("检测到循环依赖，已断开部分引用。")
 
 
-def _plan_satisfied(entities: List[WorldEntity], plan: dict) -> bool:
-    kinds = {e.kind for e in entities}
-    if not set(MIN_KINDS) <= kinds:
-        return False
-    text = " ".join(e.statement for e in entities)
-    for value in (plan.get("properties") or {}).values():
+def _plan_gaps(entities: List[WorldEntity], plan: dict) -> List[str]:
+    """Non-blocking check: report plan aspects the model did not reflect.
+
+    Word-level matching is too brittle to *reject* model output, so this only
+    produces author-facing notes; the output is kept.
+    """
+    text = " ".join(e.statement + " " + e.basis for e in entities)
+    gaps = []
+    for key, value in (plan.get("properties") or {}).items():
         if value != _UNKNOWN and str(value) not in text:
-            return False
-    return True
+            gaps.append(f"属性「{PROPERTY_LABELS.get(key, key)}」未明显体现（期望 {value}）")
+    return gaps
 
 
 def _plan_brief(plan: Optional[dict]) -> str:
@@ -400,6 +408,22 @@ def _short_ref(seed: str, rule: str) -> str:
     if parts and 2 <= len(parts[0]) <= 24:
         return parts[0]
     return rule if len(rule) <= 24 else rule[:24]
+
+
+def _subject_ref(rule: str, seed: str) -> str:
+    """A short subject taken from the *rule* (used when the rule is the source)."""
+    text = (rule or "").strip()
+    for sep in ("：", ":"):
+        if sep in text:
+            text = text.split(sep)[-1].strip()
+    if "被" in text:
+        head = text.split("被")[0].strip(" 「」")
+        if 2 <= len(head) <= 20:
+            return head
+    parts = clauses(text)
+    if parts:
+        return parts[0] if len(parts[0]) <= 20 else parts[0][:20]
+    return _short_ref(seed, rule)
 
 
 # -- composable mechanism modules ---------------------------------------------

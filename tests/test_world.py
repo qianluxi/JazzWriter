@@ -172,15 +172,16 @@ class ExpanderTest(unittest.TestCase):
         self.assertTrue(all(isinstance(e.depends_on, list) for e in doc.entities))
         self.assertTrue(any("无效依赖" in n for n in doc.notes))
 
-    def test_plan_not_satisfied_falls_back(self):
-        ignore_plan = _StubLLM(json.dumps({"entities": [
+    def test_plan_gaps_are_noted_but_model_output_is_kept(self):
+        generic = _StubLLM(json.dumps({"entities": [
             {"id": "consequence-1", "kind": "consequence", "name": "通用", "statement": "通用后果。"},
             {"id": "institution-1", "kind": "institution", "name": "通用制度", "statement": "通用制度。"},
             {"id": "history-1", "kind": "history", "name": "通用历史", "statement": "通用历史。"},
         ]}))
         doc = self._doc()
-        WorldExpander(llm=ignore_plan).expand(doc, plan={"properties": {"scarcity": "稀缺"}})
-        self.assertTrue(any("未满足嫁接计划" in n for n in doc.notes))
+        WorldExpander(llm=generic).expand(doc, plan={"properties": {"scarcity": "稀缺"}})
+        self.assertEqual(doc.of_kind("consequence")[0].name, "通用")   # model output kept
+        self.assertTrue(any("未完全体现嫁控计划" .replace("控", "接") in n for n in doc.notes))
 
 
 class CheckerTest(unittest.TestCase):
@@ -245,6 +246,16 @@ class GraftTest(unittest.TestCase):
         self.assertTrue(any("任何人" in c for c in candidates))
         self.assertTrue(any("无法" in c for c in candidates))
         self.assertEqual(plan["original_premise"], plan["base_rule"])
+
+    def test_graft_entries_reference_the_rule_subject_not_the_seed(self):
+        engine = GraftEngine()
+        source = ("世界的核心规则：存在一种特定的物质/媒介被奉为唯一能与超越性存在沟通的通道，"
+                  "脱离开该媒介的讯息被视为无效或虚假。")
+        skel = engine.extract(source, source_name="样例")
+        doc, _ = engine.transform(skel, "深度变形", "中微子能探索宇宙的历史")
+        statement = doc.of_kind("consequence")[0].statement
+        self.assertIn("物质", statement)
+        self.assertNotIn("中微子", statement)
 
     def test_cross_requires_second_material(self):
         engine = GraftEngine()
