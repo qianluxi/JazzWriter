@@ -4,6 +4,7 @@ cd /d "%~dp0"
 python world_studio_gui.py
 if errorlevel 1 (
   echo.
-  echo [World Studio] 启动失败。请确认已安装 Python，且 Tkinter 可用（见 docs\WorldStudio_新手引导.docx）。
+  echo [World Studio] Failed to start. Make sure Python is installed and Tkinter is available.
+  echo                 See docs\WorldStudio_*.docx for the beginner guide.
   pause
 )
