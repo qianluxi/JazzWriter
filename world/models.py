@@ -43,6 +43,14 @@ STATE_MARKS: Dict[str, str] = {
     "contradiction": "〔有意保留的矛盾〕",
 }
 
+PROPERTY_LABELS: Dict[str, str] = {
+    "observability": "可观测性",
+    "scarcity": "稀缺性",
+    "enforcement": "执行方式",
+    "cost": "代价",
+    "mutability": "可变性",
+}
+
 
 class WorldIdea(Model):
     """One divergent world prototype raised from the same seed.
@@ -95,7 +103,10 @@ class WorldDoc(Model):
     contradictions: List[str] = Field(default_factory=list)
     provenance: List[str] = Field(default_factory=list)
     rule_properties: Dict[str, str] = Field(default_factory=dict)
+    rule_property_basis: Dict[str, str] = Field(default_factory=dict)
     graft_diff: Dict[str, List[str]] = Field(default_factory=dict)
+    graft_plan: Dict[str, object] = Field(default_factory=dict)
+    notes: List[str] = Field(default_factory=list)
     generation: str = "offline_template"
     created_at: str = ""
 

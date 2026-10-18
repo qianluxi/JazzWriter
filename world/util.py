@@ -31,3 +31,12 @@ def terms(text: str, limit: int = 6) -> List[str]:
 def slugify(text: str) -> str:
     s = re.sub(r"[^\w\u4e00-\u9fff-]+", "-", (text or "").strip())
     return (s.strip("-")[:40]) or "world"
+
+
+def is_plain_name(name: str) -> bool:
+    """A slug must be a single directory name: no separators, no traversal."""
+    if not name or name in (".", ".."):
+        return False
+    if any(sep in name for sep in ("/", "\\", ":", "\0")):
+        return False
+    return ".." not in name

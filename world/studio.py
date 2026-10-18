@@ -22,7 +22,7 @@ from world.graph import DependencyGraph
 from world.idea_forge import IdeaForge
 from world.models import STATES, WorldDoc, WorldIdea
 from world import emit
-from world.util import slugify
+from world.util import is_plain_name, slugify
 
 WORLDS_DIR = ROOT / "worlds"
 
@@ -75,7 +75,17 @@ class WorldStudio:
 
     @property
     def data_dir(self) -> Path:
-        return self.root / self.slug
+        return self._validated_dir()
+
+    def _validated_dir(self) -> Path:
+        """Resolve ``root/<slug>`` and require it to stay directly under root."""
+        root = Path(self.root).resolve()
+        if not is_plain_name(self.slug):
+            raise ValueError(f"非法世界观名称（slug）：{self.slug!r}")
+        target = (root / self.slug).resolve()
+        if target.parent != root:
+            raise ValueError(f"世界观路径越界：{self.slug!r} 不在 {root}")
+        return target
 
     @property
     def md_path(self) -> Path:
@@ -142,12 +152,32 @@ class WorldStudio:
         source_name: str = "",
         second_text: Optional[str] = None,
     ) -> WorldDoc:
+        if op == "世界交叉" and not second_text:
+            raise ValueError("「世界交叉」需要第二份材料（second_text）。")
         skeleton = self.grafter.extract(source_text, source_name=source_name, title=self.doc.title)
         second = self.grafter.extract(second_text, source_name="外来材料") if second_text else None
         doc, _ = self.grafter.transform(skeleton, op, self.doc.seed, second=second)
         doc.created_at = self.doc.created_at
         self.doc = doc
         return self.doc
+
+    @classmethod
+    def graft_new(
+        cls,
+        seed: str,
+        source_text: str,
+        op: str,
+        *,
+        source_name: str = "",
+        second_text: Optional[str] = None,
+        root: Optional[Path] = None,
+        provider: Optional[str] = None,
+        llm=None,
+    ) -> "WorldStudio":
+        """Derive a **new** world from a source, leaving any current world intact."""
+        studio = cls.create(seed, title=f"{op}·{seed}", root=root, provider=provider, llm=llm)
+        studio.graft(source_text, op, source_name=source_name, second_text=second_text)
+        return studio
 
     def skeleton(self, source_text: str, *, source_name: str = "") -> Skeleton:
         return self.grafter.extract(source_text, source_name=source_name, title=self.doc.title)
@@ -169,7 +199,13 @@ class WorldStudio:
     @classmethod
     def load(cls, slug: str, *, root: Optional[Path] = None, provider: Optional[str] = None, llm=None) -> "WorldStudio":
         root = Path(root) if root else WORLDS_DIR
-        path = root / slug / "world.json"
+        if not is_plain_name(slug):
+            raise ValueError(f"非法世界观名称（slug）：{slug!r}")
+        root_resolved = root.resolve()
+        target = (root_resolved / slug).resolve()
+        if target.parent != root_resolved:
+            raise ValueError(f"世界观路径越界：{slug!r}")
+        path = target / "world.json"
         if not path.exists():
             raise FileNotFoundError(f"no such world: {slug}")
         data = json.loads(path.read_text(encoding="utf-8"))

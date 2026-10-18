@@ -74,6 +74,9 @@ def cmd_graft(args) -> int:
     if not source.exists():
         print(f"找不到源材料：{source}", file=sys.stderr)
         return 2
+    if args.op == "世界交叉" and not args.second:
+        print("「世界交叉」需要第二份材料：请用 --second <文件> 指定。", file=sys.stderr)
+        return 2
     second_text = None
     if args.second:
         second = Path(args.second)
@@ -81,19 +84,19 @@ def cmd_graft(args) -> int:
             print(f"找不到交叉材料：{second}", file=sys.stderr)
             return 2
         second_text = second.read_text(encoding="utf-8")
-    studio = WorldStudio.create(
-        args.seed or source.stem, title=args.title or "", root=_root(args), provider=args.provider
-    )
-    studio.graft(
+    studio = WorldStudio.graft_new(
+        args.seed or source.stem,
         source.read_text(encoding="utf-8"),
         args.op,
         source_name=args.name or source.name,
         second_text=second_text,
+        root=_root(args),
+        provider=args.provider,
     )
     _print_status(studio)
     diff = studio.doc.graft_diff
     if diff:
-        print("\n变形记录：")
+        print("\n变形记录（源世界未被修改，本次为派生新世界）：")
         labels = {"inherit": "继承", "remove": "删除", "modify": "修改",
                   "add": "新增", "downstream": "下游影响"}
         for key in ("inherit", "remove", "modify", "add", "downstream"):
@@ -104,10 +107,23 @@ def cmd_graft(args) -> int:
     return 0
 
 
+def cmd_pick(args) -> int:
+    studio = _load(args)
+    idea = studio.choose(args.idea)
+    studio.save()
+    print(f"已选择原型：{idea.label}（{idea.id}）")
+    print(f"下一步：python world_studio.py --out <目录> grow {studio.slug}")
+    return 0
+
+
 def cmd_grow(args) -> int:
     studio = _load(args)
-    if studio.doc.chosen_idea is None and studio.doc.ideas:
-        studio.choose(studio.doc.ideas[0].id)
+    if args.pick:
+        studio.choose(args.pick)
+    if studio.doc.chosen_idea is None:
+        print("尚未选择世界原型。先用 `pick <slug> <原型>` 或 `grow <slug> --pick <原型>` 指定。",
+              file=sys.stderr)
+        return 2
     studio.grow()
     path = studio.export()
     _print_status(studio)
@@ -118,14 +134,17 @@ def cmd_grow(args) -> int:
 def cmd_check(args) -> int:
     studio = _load(args)
     issues = studio.check()
-    if not issues:
-        print("未发现需要提示的冲突。")
-        return 0
-    for issue in issues:
-        tag = "⚠" if issue["level"] == "warn" else "·"
+    warns = [i for i in issues if i["level"] == "warn"]
+    notes = [i for i in issues if i["level"] != "warn"]
+    for issue in warns:
         ids = ",".join(issue.get("ids", []))
         basis = f"（依据：{issue.get('basis')}；把握：{issue.get('confidence')}）"
-        print(f"{tag} [{ids}] {issue['message']}{basis}")
+        print(f"⚠ [{ids}] {issue['message']}{basis}")
+    for issue in notes:
+        ids = ",".join(issue.get("ids", []))
+        print(f"· [{ids}] {issue['message']}")
+    if not warns:
+        print("未发现启发式冲突——注意这不等同于“与核心规则一致”（离线不做语义判断）。")
     return 0
 
 
@@ -206,7 +225,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("grow", help="生长并导出某个世界观")
     p.add_argument("slug")
+    p.add_argument("--pick", default=None, help="选择要生长的原型（名称或序号）")
     p.set_defaults(func=cmd_grow)
+
+    p = sub.add_parser("pick", help="选择世界原型（保存后可用 grow 继续）")
+    p.add_argument("slug")
+    p.add_argument("idea")
+    p.set_defaults(func=cmd_pick)
 
     p = sub.add_parser("check", help="一致性提示（只报告，不修正）")
     p.add_argument("slug")

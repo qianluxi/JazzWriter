@@ -23,6 +23,12 @@ _DIFF_LABELS = {
 }
 
 
+def _entry_line(entity) -> str:
+    lock = " 🔒已锁定" if entity.locked else ""
+    basis = f"\n  - 依据：{entity.basis}" if entity.basis else ""
+    return f"- {entity.label()}：{entity.statement}{lock}{basis}"
+
+
 def build_markdown(doc: WorldDoc) -> str:
     lines: List[str] = []
     lines.append(f"# {doc.title or '未命名世界'}")
@@ -44,18 +50,16 @@ def build_markdown(doc: WorldDoc) -> str:
     lines.append("## 核心规则")
     lines.append("")
     for entity in doc.of_kind("rule"):
-        lines.append(f"- {entity.label()}：{entity.statement}")
-        if entity.basis:
-            lines.append(f"  - 依据：{entity.basis}")
-        if entity.locked:
-            lines.append("  - 已锁定")
+        lines.append(_entry_line(entity))
     lines.append("")
 
     if doc.rule_properties:
         lines.append("## 规则属性（推导起点）")
         lines.append("")
         for key, value in doc.rule_properties.items():
-            lines.append(f"- {_PROP_LABELS.get(key, key)}：{value}")
+            basis = doc.rule_property_basis.get(key, "")
+            suffix = f"（{basis}）" if basis else ""
+            lines.append(f"- {_PROP_LABELS.get(key, key)}：{value}{suffix}")
         lines.append("")
 
     for kind in _SECTION_ORDER:
@@ -65,9 +69,15 @@ def build_markdown(doc: WorldDoc) -> str:
         lines.append(f"## {KIND_LABELS.get(kind, kind)}")
         lines.append("")
         for entity in group:
-            lines.append(f"- {entity.label()}：{entity.statement}")
-            if entity.basis:
-                lines.append(f"  - 依据：{entity.basis}")
+            lines.append(_entry_line(entity))
+        lines.append("")
+
+    locked = [e for e in doc.entities if e.locked]
+    if locked:
+        lines.append("## 锁定条目")
+        lines.append("")
+        for entity in locked:
+            lines.append(f"- {entity.id}｜{KIND_LABELS.get(entity.kind, entity.kind)}｜{entity.name}")
         lines.append("")
 
     if doc.open_questions:
@@ -117,6 +127,13 @@ def build_markdown(doc: WorldDoc) -> str:
         lines.append("## 来源与变形")
         lines.append("")
         for note in doc.provenance:
+            lines.append(f"- {note}")
+        lines.append("")
+
+    if doc.notes:
+        lines.append("## 生成提示")
+        lines.append("")
+        for note in doc.notes:
             lines.append(f"- {note}")
         lines.append("")
 

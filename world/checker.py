@@ -26,9 +26,17 @@ class WorldChecker:
         issues: List[Dict[str, object]] = []
         issues.extend(self._duplicates(doc))
         issues.extend(self._conflicting_pairs(doc))
+        issues.extend(self._rule_violations(doc))
         issues.extend(self._intentional(doc))
         issues.extend(self._dependency_notes(doc))
         issues.extend(self._model_review(doc, llm))
+        if llm is None or getattr(llm, "name", "") in ("mock", ""):
+            issues.append({
+                "level": "note", "ids": [],
+                "message": "离线模式仅做词项启发式检查，无法判断语义冲突；"
+                           "“未发现冲突”不等于“与核心规则一致”。",
+                "basis": "运行模式=离线", "confidence": "高",
+            })
         return issues
 
     # -- heuristics ---------------------------------------------------------
@@ -84,6 +92,36 @@ class WorldChecker:
                     "basis": f"共享罕见词项「{term}」等 {len(rare)} 个 + 一侧含否定词"
                              + ("（跨类别）" if cross else ""),
                     "confidence": "中" if cross else "低",
+                })
+        return out
+
+    @staticmethod
+    def _rule_violations(doc: WorldDoc) -> List[Dict[str, object]]:
+        """Dedicated rule <-> downstream check (offline heuristic)."""
+        rules = doc.of_kind("rule")
+        others = [e for e in doc.entities if e.kind not in ("rule", "motif")]
+        if not rules or not others:
+            return []
+        entity_tokens = {e.id: set(tokens(e.statement)) for e in others}
+        df = Counter()
+        for entity in others:
+            for token in entity_tokens[entity.id]:
+                df[token] += 1
+        out: List[Dict[str, object]] = []
+        for rule in rules:
+            rule_tokens = set(tokens(rule.statement))
+            rule_neg = any(m in rule.statement for m in _NEGATIONS)
+            for entity in others:
+                rare = {t for t in (rule_tokens & entity_tokens[entity.id]) if df.get(t, 0) <= 2}
+                if len(rare) < 2:
+                    continue
+                if any(m in entity.statement for m in _NEGATIONS) == rule_neg:
+                    continue
+                term = sorted(rare, key=len, reverse=True)[0]
+                out.append({
+                    "level": "warn", "ids": [rule.id, entity.id],
+                    "message": f"疑似与核心规则冲突（围绕「{term}」)：{entity.label()} 的表述与规则相反。",
+                    "basis": "规则↔条目 词项重叠 + 否定方向相反", "confidence": "中",
                 })
         return out
 

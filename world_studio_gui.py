@@ -155,10 +155,7 @@ class WorldStudioApp:
         except Exception as exc:
             messagebox.showerror("发散失败", str(exc))
             return
-        self.ideas.delete(0, "end")
-        for idea in self.studio.doc.ideas:
-            dup = " ⚠重复" if idea.near_duplicate else ""
-            self.ideas.insert("end", f"{idea.label}｜{idea.lens}｜差异度 {idea.distinctness}{dup}")
+        self._render_ideas()
         warnings = self.studio.duplicate_warnings()
         self.status.set(f"已生成并保存 {len(self.studio.doc.ideas)} 个原型"
                         + (f"；⚠ {len(warnings)} 个机制重复" if warnings else ""))
@@ -176,11 +173,17 @@ class WorldStudioApp:
         except Exception as exc:
             messagebox.showerror("打开失败", str(exc))
             return
+        self.seed_var.set(self.studio.doc.seed)
+        self._render_ideas()
+        self._refresh_entities()
+        chosen = self.studio.doc.chosen_idea
         if self.studio.md_path.exists():
             self._show_markdown(self.studio.md_path)
+        else:
+            self._set_view("（该世界观尚未生长；选择上方原型后点「选择并生长」。）")
         self.where.set(f"当前：{self.studio.slug}")
-        self.status.set(f"已打开：{self.studio.slug}")
-        self._refresh_entities()
+        self.status.set(f"已打开：{self.studio.slug}"
+                        + (f"（已选原型：{chosen.label}）" if chosen else "（尚未选择原型）"))
 
     def on_grow(self) -> None:
         if self.studio is None:
@@ -191,7 +194,8 @@ class WorldStudioApp:
             messagebox.showinfo("提示", "请先在左侧选择一个世界原型。")
             return
         try:
-            self.studio.choose(str(sel[0] + 1))
+            idea = self.studio.doc.ideas[sel[0]]
+            self.studio.choose(idea.id)
             self.studio.grow()
             self.studio.export()
         except Exception as exc:
@@ -224,24 +228,54 @@ class WorldStudioApp:
         self.status.set(f"{entity_id} 锁定状态已切换")
 
     def on_graft(self) -> None:
+        op = self.op_var.get()
         path = filedialog.askopenfilename(
             title="选择已有设定文档", filetypes=[("文本", "*.txt *.md"), ("所有文件", "*.*")])
         if not path:
             return
+        second_text = None
+        if op == "世界交叉":
+            second_path = filedialog.askopenfilename(
+                title="世界交叉：选择第二份设定文档",
+                filetypes=[("文本", "*.txt *.md"), ("所有文件", "*.*")])
+            if not second_path:
+                messagebox.showinfo("提示", "「世界交叉」需要第二份材料，已取消。")
+                return
+            second_text = Path(second_path).read_text(encoding="utf-8")
         try:
-            studio = self.studio or self._new_studio()
-            studio.graft(Path(path).read_text(encoding="utf-8"),
-                         self.op_var.get(), source_name=Path(path).name)
+            studio = WorldStudio.graft_new(
+                self.seed_var.get().strip() or Path(path).stem,
+                Path(path).read_text(encoding="utf-8"),
+                op, source_name=Path(path).name, second_text=second_text,
+                provider=self.provider_var.get())
             studio.export()
             self.studio = studio
         except Exception as exc:
             messagebox.showerror("嫁接失败", str(exc))
             return
+        self.seed_var.set(studio.doc.seed)
+        self._render_ideas()
         self._show_markdown(studio.md_path)
         self._refresh_entities()
         self.refresh_worlds()
         self.where.set(f"当前：{studio.slug}")
-        self.status.set(f"嫁接完成（{self.op_var.get()}）：{studio.md_path}")
+        self.status.set(f"已派生新世界（{op}，源世界未改动）：{studio.md_path}")
+
+    def _render_ideas(self) -> None:
+        self.ideas.delete(0, "end")
+        if not self.studio:
+            return
+        for idea in self.studio.doc.ideas:
+            dup = " ⚠重复" if idea.near_duplicate else ""
+            self.ideas.insert("end", f"{idea.label}｜{idea.lens}｜差异度 {idea.distinctness}{dup}")
+        chosen = self.studio.doc.chosen_idea
+        if chosen:
+            self.ideas.selection_clear(0, "end")
+            for i, idea in enumerate(self.studio.doc.ideas):
+                if idea.id == chosen.id:
+                    self.ideas.selection_set(i)
+                    self.ideas.see(i)
+                    break
 
     def on_check(self) -> None:
         if self.studio is None:
