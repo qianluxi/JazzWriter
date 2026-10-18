@@ -22,6 +22,7 @@ from engine.outline_expander import TEMPLATE_LABELS
 from engine.semantic_similarity import MODES as EVAL_MODES
 from engine.textutil import word_count
 from improvisation.improvisation_score import MODE_PRESETS
+from llm.defaults import DEFAULT_EVAL_MODE, DEFAULT_PROVIDER
 from session import Session
 from store import (
     DATA_DIR,
@@ -333,8 +334,8 @@ def _build_session(args) -> Session:
     data_dir = Path(args.data) if getattr(args, "data", None) else DATA_DIR
     return Session.load(
         data_dir=data_dir,
-        provider=getattr(args, "provider", None),
-        eval_mode=getattr(args, "eval_mode", "lexical"),
+        provider=getattr(args, "provider", None) or DEFAULT_PROVIDER,
+        eval_mode=getattr(args, "eval_mode", DEFAULT_EVAL_MODE),
     )
 
 
@@ -1219,11 +1220,11 @@ def build_parser() -> argparse.ArgumentParser:
         description="Novel Jazz Engine — 长篇小说结构即兴引擎。",
     )
     parser.add_argument("--version", action="version", version=f"JazzWriter {__version__}")
-    parser.add_argument("--provider", default=None,
-                        help="mock | opencode | openai (默认 NJE_PROVIDER 或 mock)")
+    parser.add_argument("--provider", default=DEFAULT_PROVIDER,
+                        help="opencode | openai | mock (默认 opencode；mock 为离线备选)")
     parser.add_argument("--data", default=None, help="数据目录 (默认 ./data)")
-    parser.add_argument("--eval-mode", dest="eval_mode", default="lexical", choices=list(EVAL_MODES),
-                        help="评价方式: lexical | embedding | hybrid")
+    parser.add_argument("--eval-mode", dest="eval_mode", default=DEFAULT_EVAL_MODE, choices=list(EVAL_MODES),
+                        help="评价方式: embedding | lexical | hybrid (默认 embedding)")
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("status", help="显示主题/人物/和声/动机/故事状态").set_defaults(func=cmd_status)

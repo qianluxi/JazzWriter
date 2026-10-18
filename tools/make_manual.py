@@ -149,8 +149,8 @@ def build() -> Document:
     p(doc, "或者直接双击根目录的 JazzWriter.bat。")
     p(doc, "3）也可以用命令行（CLI）：")
     p(doc, "python main.py --help")
-    p(doc, "说明：默认使用离线 mock 模型，无需任何 API Key 即可跑通流程（但内容偏模板化）。"
-           "接入真实模型见第九章。")
+    p(doc, "说明：**默认使用真实模型 opencode**（复用你已登录的模型，含 OpenCode Go 订阅），"
+           "评价默认 embedding；离线时改用备选 mock。接入真实模型见第九章。")
 
     # -- 3 ----------------------------------------------------------------
     h1(doc, "三、5 分钟快速上手")
@@ -210,8 +210,8 @@ def build() -> Document:
     h1(doc, "四、界面速览")
     h2(doc, "顶部工具栏")
     table(doc, ["控件", "说明"], [
-        ["模型", "mock（离线演示）/ opencode（复用你已连接的模型）/ openai（兼容端点）"],
-        ["评价", "文本相似度算法：lexical（默认、无依赖）/ embedding / hybrid；改后点“重载设定”"],
+        ["模型", "opencode（默认，复用你已连接的模型）/ openai（兼容端点）/ mock（离线备选）"],
+        ["评价", "文本相似度算法：embedding（默认，本地句向量）/ lexical / hybrid；改后点“重载设定”"],
         ["重载设定", "使模型/评价模式/数据文件的改动生效"],
     ])
     h2(doc, "左侧控制区")
@@ -386,12 +386,14 @@ def build() -> Document:
 
     # -- 9 ----------------------------------------------------------------
     h1(doc, "九、接入真实模型")
-    p(doc, "默认 mock 只用于离线演示。要获得真正的创意与文笔，请接入真实模型（二者兼容）。")
-    h2(doc, "方式一：opencode（复用你已连接的模型）")
+    p(doc, "默认就走真实模型 opencode（复用你已登录的模型，含 OpenCode Go 订阅）；mock 是离线备选。")
+    h2(doc, "方式一：opencode（默认，推荐）")
     numbers(doc, [
-        "另开一个终端启动服务器：opencode serve --port 4096",
-        "在 JazzWriter 顶部把“模型”下拉选 opencode，点“重载设定”。",
-        "可选环境变量：NJE_OPENCODE_URL（默认 http://127.0.0.1:4096）、NJE_OPENCODE_MODEL（如 anthropic/claude-…）。",
+        "一次性登录订阅：opencode auth login opencode（更新过 API key 后重做这一步即可）。",
+        "另开一个终端启动服务器：opencode serve --port 4096（保持运行）。",
+        "直接使用：命令行无需 --provider；GUI 顶部“模型”默认已选 opencode，点“重载设定”。",
+        "默认模型为 opencode-go/deepseek-v4.1-flash；可用 $env:NJE_OPENCODE_MODEL = \"opencode-go/<模型>\" 覆盖"
+        "（opencode models opencode-go 可列出可用模型）。",
     ])
     h2(doc, "方式二：OpenAI 兼容端点（OpenAI / DeepSeek / Qwen…）")
     p(doc, "在启动 GUI 之前设置环境变量：")
@@ -400,7 +402,8 @@ def build() -> Document:
     p(doc, '$env:NJE_BASE_URL = "https://api.deepseek.com/v1"')
     p(doc, '$env:NJE_MODEL = "deepseek-chat"')
     p(doc, "然后顶部“模型”选 openai，点“重载设定”。")
-    p(doc, "提示：结构在离线（mock）下用确定性模板，会被标记为 offline_template；只有接入模型才是模型创作。")
+    p(doc, "离线备选：把“模型”切到 mock（或 --provider mock），用确定性模板跑通流程，"
+           "产出会标记为 offline_template。")
 
     # -- 9 ----------------------------------------------------------------
     h1(doc, "十、命令行速查")

@@ -8,7 +8,7 @@ Uses only the standard library (urllib), so no extra dependency is required.
 
 Configuration (env vars):
   NJE_OPENCODE_URL       server base URL        (default http://127.0.0.1:4096)
-  NJE_OPENCODE_MODEL     "provider/model"       (optional; else the server default)
+  NJE_OPENCODE_MODEL     "provider/model"       (default an OpenCode Go model)
   OPENCODE_SERVER_PASSWORD / OPENCODE_SERVER_USERNAME  (optional basic auth)
 
 Start the server first::
@@ -26,6 +26,7 @@ import urllib.request
 from typing import Any, Dict, List, Optional
 
 from llm.base import LLMError, LLMProvider
+from llm.defaults import DEFAULT_OPENCODE_MODEL
 
 DEFAULT_SYSTEM = (
     "你是一位克制、精确的文学写作者，擅长通过细节、留白和意象表达主题。"
@@ -46,7 +47,7 @@ class OpenCodeProvider(LLMProvider):
     ) -> None:
         self.base_url = (base_url or os.getenv("NJE_OPENCODE_URL")
                          or "http://127.0.0.1:4096").rstrip("/")
-        self.model = model or os.getenv("NJE_OPENCODE_MODEL")
+        self.model = model or os.getenv("NJE_OPENCODE_MODEL") or DEFAULT_OPENCODE_MODEL
         self.password = password or os.getenv("OPENCODE_SERVER_PASSWORD")
         self.username = username or os.getenv("OPENCODE_SERVER_USERNAME") or "opencode"
         self.timeout = timeout

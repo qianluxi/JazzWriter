@@ -29,7 +29,8 @@ World Studio（世界观工坊）是 JazzWriter 里与「小说编排」并列�
 - **双击启动**：双击项目根目录的 `WorldStudio.bat`。
 - **命令行**：`python world_studio_gui.py`（界面） / `python world_studio.py --help`（命令行）。
 
-默认使用离线 `mock` 模型，无需任何 API Key 即可跑通全流程（内容偏骨架化，但结构、依据、状态、导出齐全）。
+默认使用真实模型 **opencode**（复用你已登录的模型，含 OpenCode Go 订阅）；离线时把「模型」切到备选 **mock**，
+无需任何 API Key 即可跑通（内容偏骨架化，但结构、依据、状态、导出齐全）。接入真实模型见第八章。
 
 ---
 
@@ -122,14 +123,17 @@ GUI 在左下“编辑选中条目”里改；命令行用 `edit`。
 
 ## 八、接入真实模型
 
-默认 `mock` 只用于离线演示。接入真实模型：
+默认就走真实模型 opencode（复用你已登录的模型，含 OpenCode Go 订阅）；mock 是离线备选。
 
-**opencode（复用你已连接的模型）**
+**opencode（默认，推荐）**
 
 ```powershell
-opencode serve --port 4096          # 另开终端
-python world_studio_gui.py          # 顶部「模型」选 opencode
+opencode auth login opencode       # 一次性：用订阅登录（更新过 API key 后重做这一步）
+opencode serve --port 4096         # 另开终端，保持运行
+python world_studio_gui.py         # 顶部「模型」默认已选 opencode
 ```
+
+默认模型为 `opencode-go/deepseek-v4.1-flash`；可用 `$env:NJE_OPENCODE_MODEL = "opencode-go/<模型>"` 覆盖。
 
 **OpenAI 兼容端点（OpenAI / DeepSeek / Qwen …）**
 
@@ -139,6 +143,8 @@ $env:NJE_BASE_URL   = "https://api.deepseek.com/v1"
 $env:NJE_MODEL      = "deepseek-chat"
 # 顶部「模型」选 openai
 ```
+
+离线备选：把「模型」切到 `mock`（或 `--provider mock`）。
 
 模型返回的 JSON 会被严格校验（`kind` 白名单、最低类别覆盖、id 唯一、依赖引用有效、无环）；
 不合格时忽略并**记录原因**、必要时**回退到离线推导**，且文档中会有提示。保存采用**原子写入并保留 `.bak` 备份**。

@@ -19,6 +19,7 @@ from world.models import STATES
 from world.graft import OPS
 from world.idea_forge import DIMENSION_LABELS
 from world.studio import WORLDS_DIR, WorldStudio
+from llm.defaults import DEFAULT_PROVIDER
 
 try:
     import tkinter as tk
@@ -49,9 +50,9 @@ class WorldStudioApp:
         )
         ttk.Entry(top, textvariable=self.seed_var).pack(side="left", fill="x", expand=True, padx=6)
         ttk.Label(top, text="模型").pack(side="left")
-        self.provider_var = tk.StringVar(value="mock")
+        self.provider_var = tk.StringVar(value=DEFAULT_PROVIDER)
         ttk.Combobox(top, textvariable=self.provider_var, width=10,
-                     values=["mock", "opencode", "openai"], state="readonly").pack(side="left", padx=6)
+                     values=["opencode", "openai", "mock"], state="readonly").pack(side="left", padx=6)
         ttk.Button(top, text="发散", command=self.on_spark).pack(side="left")
 
         bar = ttk.Frame(self.root, padding=(8, 0))

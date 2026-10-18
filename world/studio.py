@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from llm import get_provider
+from llm.defaults import DEFAULT_PROVIDER
 from store import ROOT
 from world.checker import WorldChecker
 from world.expander import WorldExpander
@@ -41,7 +42,7 @@ class WorldStudio:
     ) -> None:
         self.root = Path(root) if root else WORLDS_DIR
         self.slug = slug or slugify(title or seed)
-        self.llm = llm if llm is not None else get_provider(provider)
+        self.llm = llm if llm is not None else get_provider(provider or DEFAULT_PROVIDER)
         self.forge = IdeaForge(self.llm)
         self.expander = WorldExpander(self.llm)
         self.grafter = GraftEngine(self.llm)

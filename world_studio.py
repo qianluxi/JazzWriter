@@ -20,6 +20,7 @@ from world.graft import OPS
 from world.idea_forge import DIMENSION_LABELS
 from world.models import KIND_LABELS
 from world.studio import WorldStudio
+from llm.defaults import DEFAULT_PROVIDER
 
 try:
     sys.stdout.reconfigure(encoding="utf-8")
@@ -244,7 +245,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="world_studio", description="World Studio · 世界观工坊（独立入口）"
     )
-    parser.add_argument("--provider", default="mock", help="mock | opencode | openai（默认 mock 离线）")
+    parser.add_argument("--provider", default=DEFAULT_PROVIDER,
+                        help="opencode | openai | mock（默认 opencode；mock 为离线备选）")
     parser.add_argument("--out", default=None, help="世界观数据目录（默认 worlds/）")
     sub = parser.add_subparsers(dest="command", required=True)
 

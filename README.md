@@ -1,4 +1,4 @@
-# JazzWriter（小说爵士引擎）`v2.28`
+# JazzWriter（小说爵士引擎）`v2.29`
 
 > **长篇小说结构即兴引擎 / Human-AI Improvisational Writing System。**
 > 主要产物不是小说正文，而是**故事方案、全书梗概、分卷结构、逐章摘要卡片，以及人物与关系网络**。
@@ -40,8 +40,8 @@
 7. **按需局部重新即兴**（先出候选，作者采纳后才写回；锁定内容不被覆盖）
 8. **最后才进入可选的正文试写**
 
-> ⚠️ **mock 与真实模型**：默认 `mock` 是**离线演示**，只用于验证流程（章节卡片明显模板化）。
-> 结构与正文质量主要依赖真实模型：`--provider opencode`（复用你已连接的模型）或 `--provider openai`。
+> ⚠️ **mock 与真实模型**：**默认走真实模型 `opencode`**；`mock` 是**离线备选**，只用于验证流程（章节卡片明显模板化）。
+> 结构与正文质量主要依赖真实模型：`--provider opencode`（复用你已连接的模型，含 Go 订阅）或 `--provider openai`。
 > 离线生成的结构会被明确标记为 `offline_template`，不会伪装成模型创作。
 
 ---
@@ -55,7 +55,10 @@ python gui.py                  # 图形界面（或双击 JazzWriter.bat）
 python world_studio_gui.py     # 世界观工坊界面（或双击 WorldStudio.bat）
 ```
 
-无需任何 API Key 即可跑通流程（内置离线 `mock`）。仅 GUI 使用标准库 Tkinter，无需额外安装。
+无需任何 API Key 即可跑通流程（内置离线 `mock`；**作为备选**）。仅 GUI 使用标准库 Tkinter，无需额外安装。
+
+**默认设置**：模型 **`opencode`**（复用你已登录的模型，含 OpenCode Go 订阅）、评价 **`embedding`**（本地句向量）。离线时改用备选 `--provider mock`。
+World Studio 的默认模型同样是 **`opencode`**。opencode 端只需一次性登录：`opencode auth login opencode`，并运行 `opencode serve --port 4096`。
 
 ---
 
@@ -94,7 +97,7 @@ python main.py book --from-plan --pov 林 --no-save
 
 ## 图形界面
 
-`python gui.py`（或双击 `JazzWriter.bat`）。顶部选「模型」（mock/opencode/openai）与「评价」（lexical/embedding/hybrid）。
+`python gui.py`（或双击 `JazzWriter.bat`）。顶部选「模型」（**默认 `opencode`**，另有 `openai` / `mock`）与「评价」（**默认 `embedding`**，另有 `lexical` / `hybrid`）。
 
 - **左侧**：场景/章节摘要框；模式、视角、结构模板、章数、采纳/融合编号；结构参数与文本参数。
 - **① 结构即兴**：生成创意 → 融合所选两个方案 / 采纳并展开 → 校验 / 保存卡片编辑 / 保存 JSON / **编辑人物·关系变化（表单）** / 重新即兴（可选范围） / 锁定 / 导出结构 / 偏离检测 / 导出故事板。
@@ -150,7 +153,7 @@ python main.py book --from-plan --pov 林 --no-save
 - **数据安全与可靠性**：世界观名（slug）限定为单层目录名，路径经 `resolve()` 后必须位于世界观根目录内（拒绝 `..`、分隔符与越界）；保存采用**原子写入（临时文件 + 原子替换）并保留上一版 `.bak` 备份**。
 - **模型输出校验**：模型 JSON 经严格校验——`kind` 白名单、必填字段、非空陈述、**最低类别覆盖（后果/制度/历史）**、**id 唯一性**、**`depends_on` 类型与父 id 存在性**、**依赖无环**；不合格时忽略并**明确记录原因**、必要时**回退离线推导**。
 - **产出**：`worlds/<slug>/world.md`（结构化世界观文档）+ `world.json`（机器可读）。
-- **模型**：可选 `--provider opencode|openai`；默认离线 `mock` 用确定性推导给出可读骨架（标注 `offline_template`）。
+- **模型**：**默认 `opencode`**（复用你已登录的模型）；也可 `--provider openai`；离线备选 `--provider mock`（用确定性推导给出可读骨架，标注 `offline_template`）。
 
 ```powershell
 python world_studio.py spark "每个人死后都会留下一段从未说出口的记忆，但只有建筑能听见"
@@ -316,6 +319,19 @@ python world_studio_gui.py                                 # 独立图形界面�
 
 ## 接入真实模型
 
+**默认就是 `opencode`（推荐）**——复用你已登录的模型（含 **OpenCode Go 订阅**）：
+
+```powershell
+opencode auth login opencode        # 一次性：用订阅登录（OAuth）
+opencode serve --port 4096          # 另开终端，保持运行
+python main.py play "..."           # 无需 --provider，默认即 opencode
+python world_studio.py spark "…"    # 世界观工坊同理，默认也是 opencode
+```
+
+- 默认调用的模型：**`opencode-go/deepseek-v4.1-flash`**（Go 档）；可用 `$env:NJE_OPENCODE_MODEL = "opencode-go/<模型>"` 覆盖（`opencode models opencode-go` 可列出现有模型）。
+- 其它可选环境变量：`NJE_OPENCODE_URL`（默认 `http://127.0.0.1:4096`）、`OPENCODE_SERVER_PASSWORD`。
+- 更新过 API key 后，只需在 **opencode 端**重新登录/换 key 并重启 `opencode serve`，JazzWriter/World Studio 会自动沿用，无需改动本项目配置。
+
 **任意 OpenAI 兼容端点**（OpenAI / DeepSeek / Qwen / vLLM / Ollama）：
 
 ```powershell
@@ -326,15 +342,7 @@ $env:NJE_MODEL      = "deepseek-chat"
 python main.py play "..." --provider openai
 ```
 
-**opencode（复用你已连接的模型）**：
-
-```powershell
-opencode serve --port 4096          # 另开终端
-python main.py play "..." --provider opencode
-```
-
-可选环境变量：`NJE_OPENCODE_URL`（默认 `http://127.0.0.1:4096`）、`NJE_OPENCODE_MODEL`、`OPENCODE_SERVER_PASSWORD`。
-不设任何 Key 时仍可用 `mock` 离线跑通。
+**离线备选**：`--provider mock`（或在 GUI 里把「模型」切到 `mock`）——不连任何模型，用确定性推导跑通全流程。
 
 ---
 
@@ -366,7 +374,7 @@ engine/         book_planner · outline_expander · reimproviser · plot_validat
                 memory · vector_store · report · planning_llm
 feedback/       theme_check / character_check / novelty_check / conductor
 jam_session/    director / soloist / observer / editor / orchestrator
-llm/            base / mock / openai_provider / opencode_provider
+llm/            base / mock / openai_provider / opencode_provider / defaults
 session.py  store.py  cli.py  gui.py  main.py
 world/          World Studio：idea_forge(发散+机制度量) · expander(按规则属性推导)
                 graft(嫁接/结构化差异) · graph(依赖溯源) · checker(一致性提示)
@@ -402,6 +410,7 @@ python -m unittest discover -s tests     # 170 项：确定性 / 记录 / 连续
 
 | 版本 | 内容 |
 | --- | --- |
+| **v2.29** | 默认设置改为**真实模型优先**：JazzWriter 默认 **`opencode` + `embedding` 评价**，World Studio 默认 **`opencode`**（`mock` 保留为离线备选）· opencode 默认模型指向 **`opencode-go/deepseek-v4.1-flash`**（可用 `NJE_OPENCODE_MODEL` 覆盖，`opencode models opencode-go` 可查）· 更新 opencode API key 后无需改本项目，重登 `opencode` 并重启 `opencode serve` 即可 |
 | **v2.28** | 补齐"设定条目"操作：CLI 新增 **`lock`/`--off`** 与 **`show --entries`**（列出 `[状态] id｜类别｜名称＋锁定`）· 引导与命令表同步 |
 | **v2.27.1** | 修复"只看到 4"的困惑：原型**五个维度**改为**显式展示**（GUI 选中即看 / CLI 打印 / `world.md`「世界原型」节），并说明原型**默认 4 个**（`--count 3–6`）；补充对应回归测试 |
 | **v2.27** | World Studio 深化（专家三轮）：**结构化条目编辑**（改名称/内容/依据/状态，保留 id/来源/依赖；锁定或已确认需确认；改核心规则列出需复核的下游候选）· **嫁接计划进入模型提示并做生成后校验**（不满足则回退离线，不再只追加说明）· `反转前提`给出**多个具体反命题候选** · 规则属性**显式语义规则**（否定/范围/未知，修正"不会被看见""并不稀缺"等误判）· 离线生长引入**可组合机制模块**（不同规则形成不同结构）· 模型 JSON 校验加严（**最低类别覆盖 / id 唯一 / 依赖类型与引用 / 无环**）· **原子写入 + `.bak` 备份**；GUI 锁定后即时刷新预览 |

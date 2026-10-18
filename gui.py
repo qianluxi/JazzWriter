@@ -29,6 +29,7 @@ from core.improviser import STYLES
 from engine.outline_expander import TEMPLATE_LABELS
 from engine.project_manager import ProjectManager
 from engine.semantic_similarity import MODES as EVAL_MODES
+from llm.defaults import DEFAULT_EVAL_MODE, DEFAULT_PROVIDER
 from llm import get_provider
 from improvisation.improvisation_score import MODE_PRESETS
 from session import Session
@@ -112,12 +113,12 @@ class App:
         bar = ttk.Frame(self.root, padding=(10, 8, 10, 4))
         bar.pack(fill="x")
         ttk.Label(bar, text="模型:").pack(side="left")
-        self.provider_var = tk.StringVar(value="mock")
+        self.provider_var = tk.StringVar(value=DEFAULT_PROVIDER)
         ttk.Combobox(bar, textvariable=self.provider_var,
-                     values=["mock", "opencode", "openai"], width=10,
+                     values=["opencode", "openai", "mock"], width=10,
                      state="readonly").pack(side="left", padx=(4, 12))
         ttk.Label(bar, text="评价:").pack(side="left")
-        self.eval_var = tk.StringVar(value="lexical")
+        self.eval_var = tk.StringVar(value=DEFAULT_EVAL_MODE)
         ttk.Combobox(bar, textvariable=self.eval_var, values=list(EVAL_MODES),
                      width=10, state="readonly").pack(side="left", padx=(4, 12))
         ttk.Label(bar, text="项目:").pack(side="left")

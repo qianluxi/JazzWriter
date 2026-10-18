@@ -197,19 +197,20 @@ def build() -> Document:
 
     # -- 8 ------------------------------------------------------------------
     h1(doc, "八、接入真实模型")
-    p(doc, "默认 mock 只用于离线演示。要获得真正的创意与文笔，请接入真实模型（二者兼容）。")
-    h2(doc, "方式一：opencode（复用你已连接的模型）")
+    p(doc, "默认就走真实模型 opencode（复用你已登录的模型，含 OpenCode Go 订阅）；mock 是离线备选。")
+    h2(doc, "方式一：opencode（默认，推荐）")
     numbers(doc, [
-        "另开终端运行：opencode serve --port 4096",
-        "运行：python world_studio_gui.py（或 world_studio.py），把顶部“模型”选为 opencode。",
+        "一次性登录订阅：opencode auth login opencode（更新过 API key 后重做这一步即可）。",
+        "另开终端运行：opencode serve --port 4096（保持运行）。",
+        "直接使用：python world_studio_gui.py（或 world_studio.py），顶部“模型”默认已选 opencode。",
     ])
     h2(doc, "方式二：OpenAI 兼容端点（OpenAI / DeepSeek / Qwen …）")
     p(doc, '$env:OPENAI_API_KEY = "你的key"')
     p(doc, '$env:NJE_BASE_URL = "https://api.deepseek.com/v1"')
     p(doc, '$env:NJE_MODEL = "deepseek-chat"')
     p(doc, "然后把“模型”选为 openai。")
-    p(doc, "注意：world_studio.py 的 --provider 只决定“用哪个模型”，与小说编排共用同一套配置。"
-           "若模型返回的 JSON 字段缺失或类别非法，系统会忽略并回退到离线推导，并在文档中给出提示。")
+    p(doc, "离线备选：把“模型”切到 mock（或 --provider mock），用确定性推导跑通流程，产出标注 offline_template。"
+           "opencode 默认模型为 opencode-go/deepseek-v4.1-flash，可用 NJE_OPENCODE_MODEL 覆盖。")
 
     # -- 9 ------------------------------------------------------------------
     h1(doc, "九、常见问题（FAQ）")
