@@ -1,4 +1,4 @@
-# JazzWriter（小说爵士引擎）`v2.25`
+# JazzWriter（小说爵士引擎）`v2.26`
 
 > **长篇小说结构即兴引擎 / Human-AI Improvisational Writing System。**
 > 主要产物不是小说正文，而是**故事方案、全书梗概、分卷结构、逐章摘要卡片，以及人物与关系网络**。
@@ -52,6 +52,7 @@
 pip install -r requirements.txt
 python main.py --help          # 命令行
 python gui.py                  # 图形界面（或双击 JazzWriter.bat）
+python world_studio_gui.py     # 世界观工坊界面（或双击 WorldStudio.bat）
 ```
 
 无需任何 API Key 即可跑通流程（内置离线 `mock`）。仅 GUI 使用标准库 Tkinter，无需额外安装。
@@ -132,7 +133,9 @@ python main.py book --from-plan --pov 林 --no-save
 
 ## World Studio（世界观工坊）
 
-**独立入口**：`python world_studio.py`（命令行）与 `python world_studio_gui.py`（独立窗口）。数据独立保存在 `worlds/<slug>/`，**不写入小说项目**，直到你明确导出。
+**独立入口**：`python world_studio.py`（命令行）与 `python world_studio_gui.py`（独立窗口，或双击 `WorldStudio.bat`）。数据独立保存在 `worlds/<slug>/`，**不写入小说项目**，直到你明确导出。
+
+> 新手指引：`docs/WorldStudio_新手引导.docx`（或 `docs/WorldStudio_新手引导.md`）。
 
 一条可观察、可保存的创意工作流：**只言片语 → 发散多个底层逻辑不同的世界原型 → 选择 → 逐层生长 → 一致性提示 → 导出 `world.md`**。
 
@@ -395,6 +398,7 @@ python -m unittest discover -s tests     # 162 项：确定性 / 记录 / 连续
 
 | 版本 | 内容 |
 | --- | --- |
+| **v2.26** | World Studio 易用性：新增**独立启动器 `WorldStudio.bat`** 与**《World Studio 新手引导》**（`docs/WorldStudio_新手引导.docx` / `.md`）· 站点首页加入工坊引导入口 |
 | **v2.25** | World Studio 可靠性修复（专家复审）：**保存后恢复闭环**（GUI 恢复种子/原型/选中并按 ID 选择；CLI 新增 `pick`，`grow` 不再静默默认第一条）· **嫁接默认派生新世界不覆盖源世界**，`世界交叉`**强制第二份材料** · 嫁接改为**结构化变形计划**并据此生成不同的核心规则与后果链 · 规则属性**含证据/把握度/未知**（处理否定与范围）· 一致性新增**规则↔下游**检查与**离线不做语义判断**声明 · 依赖图改为**多层链** · **slug 路径护栏** · **模型 JSON 严格校验与回退** · Markdown 输出**全条目**状态与锁定 |
 | **v2.24** | World Studio 可靠性提升（专家评审 P1）：**原型差异度改为按世界机制五维度量**并标记"标签不同但机制重复"· **生长改为由规则属性**（可观测性/稀缺性/执行/代价/可变性）**推导**而非固定模板 · 新增**依赖图**（`impact` 反查受影响条目）· 一致性检查**跨类别 + 输出依据与把握度 + 可选模型语义审阅** · 嫁接输出**结构化差异**（继承/删除/修改/新增/下游影响）· GUI 支持**发散即存、打开已有、改状态与锁定** |
 | **v2.23** | 新模块 **World Studio（世界观工坊）**：独立入口 `world_studio.py` / `world_studio_gui.py`，独立数据目录 `worlds/`。**灵感种子**（一句话发散多个底层逻辑不同的世界原型）+ **设定嫁接**（抽取骨架 → 深度变形/主题移植/世界交叉/边缘扩展/反转前提）；状态区分与只提示不修正的一致性检查；产出结构化 `world.md` |
